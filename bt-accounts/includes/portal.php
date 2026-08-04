@@ -183,7 +183,7 @@ function bta_render_portal($view = '', $errors = array()) {
     $accent  = $account->brand_color ? $account->brand_color : '#27267e';
     $who     = $user->display_name ? $user->display_name : $user->username;
 
-    $titles = array('new' => 'New order', 'order' => 'Order');
+    $titles = array('new' => 'New order', 'order' => 'Order', 'quote' => 'Quote');
     $title  = isset($titles[$view]) ? $titles[$view] . ' · ' : '';
 
     bta_head($title . $account->name . ' · Boomer T\'s', $accent);
@@ -212,7 +212,7 @@ function bta_render_portal($view = '', $errors = array()) {
       <div class="bta-tabs-inner">
         <a class="bta-tab<?php echo ($view === '' || $view === 'order') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url()); ?>">Orders</a>
         <a class="bta-tab<?php echo ($view === 'new') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url('new')); ?>">New Order</a>
-        <span class="bta-tab is-disabled" title="Coming soon">Quote</span>
+        <a class="bta-tab<?php echo ($view === 'quote') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url('quote')); ?>">Quote</a>
       </div>
     </nav>
 
@@ -225,6 +225,8 @@ function bta_render_portal($view = '', $errors = array()) {
               echo '<div class="bta-notice">Order submitted. We will review the artwork and be in touch to confirm pricing.</div>';
           }
           bta_portal_order_detail($user, $account, (int) get_query_var('bta_id'));
+      } elseif ($view === 'quote') {
+          bta_portal_quote($user, $account);
       } else {
           bta_portal_orders($user, $account);
       }
@@ -237,6 +239,8 @@ function bta_render_portal($view = '', $errors = array()) {
     <?php
     if ($view === 'new') {
         echo '<script src="' . esc_url(BTA_URL . 'assets/order-form.js?v=' . BTA_VERSION) . '"></script>';
+    } elseif ($view === 'quote') {
+        echo '<script src="' . esc_url(BTA_URL . 'assets/quote.js?v=' . BTA_VERSION) . '"></script>';
     }
     bta_foot();
 }

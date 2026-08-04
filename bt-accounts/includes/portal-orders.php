@@ -10,7 +10,8 @@ function bta_default_sizes() {
 }
 
 function bta_decorations() {
-    return array('embroidery' => 'Embroidery', 'print' => 'Print');
+    // Print first — it is the default selection on the order form.
+    return array('print' => 'Print', 'embroidery' => 'Embroidery');
 }
 
 function bta_placements() {
@@ -342,7 +343,7 @@ function bta_handle_order_submit($user, $account) {
         if ($qty < 1) { $errors[] = 'Item ' . ($i + 1) . ' (' . ($style !== '' ? $style : $name) . ') needs a quantity in at least one size.'; }
 
         $dec = isset($_POST['item_decoration'][$i]) ? sanitize_key(wp_unslash($_POST['item_decoration'][$i])) : '';
-        if (!array_key_exists($dec, bta_decorations())) $dec = 'embroidery';
+        if (!array_key_exists($dec, bta_decorations())) $dec = 'print';
 
         $art_label = isset($_POST['item_art'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_art'][$i])) : '';
         if ($art_label !== '' && !in_array($art_label, $art_labels, true)) $art_label = '';
