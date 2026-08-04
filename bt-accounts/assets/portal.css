@@ -1,0 +1,206 @@
+/* BT Accounts — portal styles. Standalone document; nothing here leaks into
+   the theme and nothing from the theme reaches in. */
+
+:root {
+  --bta-accent: #0b5d8f;
+  --bta-ink: #16181d;
+  --bta-muted: #5c6472;
+  --bta-line: #dfe3ea;
+  --bta-bg: #f4f6f9;
+  --bta-card: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+.bta-body {
+  margin: 0;
+  background: var(--bta-bg);
+  color: var(--bta-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--bta-accent); }
+
+/* ── Login ───────────────────────────────────────────────────────────────── */
+
+.bta-login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.bta-login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bta-card);
+  border: 1px solid var(--bta-line);
+  border-radius: 10px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 2px 20px rgba(20, 26, 40, .07);
+}
+
+.bta-login-brand {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--bta-muted);
+}
+
+.bta-login-title {
+  margin: 6px 0 22px;
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.bta-alert {
+  background: #fdecec;
+  border: 1px solid #f5c2c2;
+  color: #8a1c1c;
+  border-radius: 6px;
+  padding: 11px 13px;
+  font-size: 15px;
+  margin-bottom: 18px;
+}
+
+.bta-form { display: block; }
+
+.bta-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--bta-muted);
+  margin: 14px 0 6px;
+}
+
+.bta-input {
+  width: 100%;
+  font-size: 16px;           /* 16px keeps iOS from zooming on focus */
+  padding: 11px 13px;
+  border: 1px solid var(--bta-line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--bta-ink);
+}
+
+.bta-input:focus {
+  outline: none;
+  border-color: var(--bta-accent);
+  box-shadow: 0 0 0 3px rgba(11, 93, 143, .14);
+}
+
+.bta-btn {
+  width: 100%;
+  margin-top: 22px;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--bta-accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.bta-btn:hover { filter: brightness(1.08); }
+
+.bta-login-help {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: var(--bta-muted);
+  text-align: center;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.bta-header {
+  background: #fff;
+  border-bottom: 1px solid var(--bta-line);
+}
+
+.bta-header-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.bta-header-brand { display: flex; align-items: center; gap: 13px; }
+.bta-header-logo { max-height: 34px; max-width: 190px; display: block; }
+.bta-header-name { font-size: 19px; font-weight: 700; color: var(--bta-accent); }
+.bta-header-sep { width: 1px; height: 22px; background: var(--bta-line); }
+.bta-header-shop { font-size: 14px; font-weight: 600; color: var(--bta-muted); }
+
+.bta-header-user { display: flex; align-items: center; gap: 14px; }
+.bta-header-who { font-size: 14px; color: var(--bta-muted); }
+.bta-header-out { font-size: 14px; font-weight: 600; text-decoration: none; }
+.bta-header-out:hover { text-decoration: underline; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+
+.bta-tabs { background: #fff; border-bottom: 1px solid var(--bta-line); }
+
+.bta-tabs-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 22px;
+  display: flex;
+  gap: 4px;
+}
+
+.bta-tab {
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--bta-muted);
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+
+.bta-tab.is-active { color: var(--bta-accent); border-bottom-color: var(--bta-accent); }
+.bta-tab.is-disabled { opacity: .4; cursor: default; }
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+
+.bta-main { max-width: 1180px; margin: 0 auto; padding: 32px 22px 56px; }
+.bta-h1 { margin: 0 0 6px; font-size: 26px; }
+.bta-lede { margin: 0 0 26px; color: var(--bta-muted); font-size: 15px; }
+
+.bta-empty {
+  background: var(--bta-card);
+  border: 1px solid var(--bta-line);
+  border-radius: 10px;
+  padding: 40px 32px;
+  text-align: center;
+  color: var(--bta-muted);
+  font-size: 15px;
+}
+
+.bta-empty-title { font-size: 17px; font-weight: 700; color: var(--bta-ink); margin-bottom: 8px; }
+.bta-empty p { margin: 0 auto; max-width: 480px; }
+
+.bta-footer {
+  border-top: 1px solid var(--bta-line);
+  padding: 20px 22px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--bta-muted);
+}
+
+@media (max-width: 600px) {
+  .bta-header-inner { padding: 12px 16px; }
+  .bta-tabs-inner { padding: 0 16px; overflow-x: auto; }
+  .bta-main { padding: 24px 16px 40px; }
+  .bta-h1 { font-size: 22px; }
+}
