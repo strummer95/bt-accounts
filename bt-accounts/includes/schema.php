@@ -7,7 +7,7 @@
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 1);
+define('BTA_SCHEMA_VERSION', 2);
 
 function bta_table($name) {
     global $wpdb;
@@ -81,6 +81,95 @@ function bta_install_schema() {
         KEY ip_time (ip, attempted_at),
         KEY user_time (username, attempted_at)
     ) $charset;");
+
+    /* ── v2: orders ──────────────────────────────────────────────────────── */
+
+    $orders = bta_table('orders');
+    $items  = bta_table('order_items');
+    $art    = bta_table('order_art');
+    $log    = bta_table('order_log');
+
+    dbDelta("CREATE TABLE $orders (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        order_number VARCHAR(40) NOT NULL DEFAULT '',
+        end_customer VARCHAR(190) NOT NULL DEFAULT '',
+        account_po VARCHAR(120) NOT NULL DEFAULT '',
+        supplier_name VARCHAR(190) NOT NULL DEFAULT '',
+        supplier_po VARCHAR(120) NOT NULL DEFAULT '',
+        expected_arrival DATE NULL,
+        in_hands_date DATE NULL,
+        ship_name VARCHAR(190) NOT NULL DEFAULT '',
+        ship_address1 VARCHAR(190) NOT NULL DEFAULT '',
+        ship_address2 VARCHAR(190) NOT NULL DEFAULT '',
+        ship_city VARCHAR(120) NOT NULL DEFAULT '',
+        ship_state VARCHAR(60) NOT NULL DEFAULT '',
+        ship_zip VARCHAR(20) NOT NULL DEFAULT '',
+        ship_method VARCHAR(60) NOT NULL DEFAULT '',
+        notes MEDIUMTEXT NULL,
+        status VARCHAR(60) NOT NULL DEFAULT 'Submitted',
+        job_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        submitted_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        UNIQUE KEY order_number (order_number),
+        KEY account_id (account_id),
+        KEY user_id (user_id),
+        KEY status (status),
+        KEY job_id (job_id),
+        KEY acct_created (account_id, created_at)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $items (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        sort_order INT NOT NULL DEFAULT 0,
+        catalog_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        style_no VARCHAR(60) NOT NULL DEFAULT '',
+        style_name VARCHAR(255) NOT NULL DEFAULT '',
+        brand VARCHAR(120) NOT NULL DEFAULT '',
+        color VARCHAR(120) NOT NULL DEFAULT '',
+        sizes MEDIUMTEXT NULL,
+        qty INT NOT NULL DEFAULT 0,
+        decoration VARCHAR(40) NOT NULL DEFAULT '',
+        placement VARCHAR(120) NOT NULL DEFAULT '',
+        art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        notes TEXT NULL,
+        PRIMARY KEY (id),
+        KEY order_id (order_id)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $art (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        label VARCHAR(190) NOT NULL DEFAULT '',
+        file_url TEXT NULL,
+        file_name VARCHAR(255) NOT NULL DEFAULT '',
+        uploaded_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY order_id (order_id),
+        KEY account_id (account_id)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $log (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        status VARCHAR(60) NOT NULL DEFAULT '',
+        note VARCHAR(255) NOT NULL DEFAULT '',
+        changed_by VARCHAR(190) NOT NULL DEFAULT '',
+        changed_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY order_id (order_id)
+    ) $charset;");
+
+    // v2 also adds a per-account order-number prefix.
+    $acc_cols = $wpdb->get_col("DESC $accounts", 0);
+    if (is_array($acc_cols) && !in_array('order_prefix', $acc_cols, true)) {
+        $wpdb->query("ALTER TABLE $accounts ADD COLUMN order_prefix VARCHAR(12) NOT NULL DEFAULT '' AFTER slug");
+    }
 
     update_option('bta_schema_version', BTA_SCHEMA_VERSION);
 }

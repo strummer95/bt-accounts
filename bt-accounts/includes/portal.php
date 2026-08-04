@@ -12,12 +12,14 @@ if (!defined('ABSPATH')) exit;
 add_action('init', 'bta_register_rewrite');
 function bta_register_rewrite() {
     add_rewrite_rule('^' . bta_portal_slug() . '/?$', 'index.php?bta_portal=1', 'top');
+    add_rewrite_rule('^' . bta_portal_slug() . '/order/([0-9]+)/?$', 'index.php?bta_portal=1&bta_view=order&bta_id=$matches[1]', 'top');
     add_rewrite_rule('^' . bta_portal_slug() . '/([a-z0-9_-]+)/?$', 'index.php?bta_portal=1&bta_view=$matches[1]', 'top');
 }
 
 add_filter('query_vars', function ($vars) {
     $vars[] = 'bta_portal';
     $vars[] = 'bta_view';
+    $vars[] = 'bta_id';
     return $vars;
 });
 
@@ -65,8 +67,24 @@ function bta_route_portal() {
         }
     }
 
-    if (bta_is_logged_in()) bta_render_portal();
-    else bta_render_login($notice);
+    if (!bta_is_logged_in()) { bta_render_login($notice); exit; }
+
+    $user    = bta_current_user();
+    $account = $user->account;
+    $errors  = array();
+
+    // New-order submit runs before any output so a success can redirect.
+    if ($view === 'new' && !empty($_POST['bta_submit_order'])) {
+        $res = bta_handle_order_submit($user, $account);
+        if (is_array($res)) {
+            $errors = $res;
+        } else {
+            wp_safe_redirect(bta_portal_url('order/' . (int) $res) . '?new=1');
+            exit;
+        }
+    }
+
+    bta_render_portal($view, $errors);
     exit;
 }
 
@@ -88,6 +106,11 @@ function bta_wordmark($class) {
         return;
     }
     echo '<div class="' . esc_attr($class) . '">Boomer T<em>&rsquo;</em>s</div>';
+}
+
+/** URL for a portal view: bta_portal_url() or bta_portal_url('new'). */
+function bta_portal_url($view = '') {
+    return home_url('/' . bta_portal_slug() . '/' . ($view !== '' ? trim($view, '/') . '/' : ''));
 }
 
 function bta_head($title, $accent = '#27267e') {
@@ -154,12 +177,16 @@ function bta_render_login($notice = '') {
 
 /* ── Portal shell ────────────────────────────────────────────────────────── */
 
-function bta_render_portal() {
+function bta_render_portal($view = '', $errors = array()) {
     $user    = bta_current_user();
     $account = $user->account;
     $accent  = $account->brand_color ? $account->brand_color : '#27267e';
+    $who     = $user->display_name ? $user->display_name : $user->username;
 
-    bta_head($account->name . ' · Boomer T\'s', $accent);
+    $titles = array('new' => 'New order', 'order' => 'Order');
+    $title  = isset($titles[$view]) ? $titles[$view] . ' · ' : '';
+
+    bta_head($title . $account->name . ' · Boomer T\'s', $accent);
     ?>
     <header class="bta-header">
       <div class="bta-header-inner">
@@ -175,33 +202,41 @@ function bta_render_portal() {
           </div>
         </div>
         <div class="bta-header-user">
-          <span class="bta-header-who"><?php echo esc_html($user->display_name ? $user->display_name : $user->username); ?></span>
-          <a class="bta-header-out" href="<?php echo esc_url(home_url('/' . bta_portal_slug() . '/logout/')); ?>">Sign out</a>
+          <span class="bta-header-who"><?php echo esc_html($who); ?></span>
+          <a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('logout')); ?>">Sign out</a>
         </div>
       </div>
     </header>
 
     <nav class="bta-tabs">
       <div class="bta-tabs-inner">
-        <span class="bta-tab is-active">Orders</span>
-        <span class="bta-tab is-disabled" title="Coming soon">New Order</span>
+        <a class="bta-tab<?php echo ($view === '' || $view === 'order') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url()); ?>">Orders</a>
+        <a class="bta-tab<?php echo ($view === 'new') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url('new')); ?>">New Order</a>
         <span class="bta-tab is-disabled" title="Coming soon">Quote</span>
       </div>
     </nav>
 
     <main class="bta-main">
-      <h1 class="bta-h1">Welcome, <?php echo esc_html($user->display_name ? $user->display_name : $user->username); ?>.</h1>
-      <p class="bta-lede">This is the <?php echo esc_html($account->name); ?> portal at Boomer T's. Your order list will appear here.</p>
-
-      <div class="bta-empty">
-        <div class="bta-empty-title">No orders yet</div>
-        <p>Order entry and the quoter are being built now. Once they are live you will submit orders here and watch their status update as they move through the shop.</p>
-      </div>
+      <?php
+      if ($view === 'new') {
+          bta_portal_new_order($user, $account, $errors, wp_unslash($_POST));
+      } elseif ($view === 'order') {
+          if (!empty($_GET['new'])) {
+              echo '<div class="bta-notice">Order submitted. We will review the artwork and be in touch to confirm pricing.</div>';
+          }
+          bta_portal_order_detail($user, $account, (int) get_query_var('bta_id'));
+      } else {
+          bta_portal_orders($user, $account);
+      }
+      ?>
     </main>
 
     <footer class="bta-footer">
       Questions? <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>
     </footer>
     <?php
+    if ($view === 'new') {
+        echo '<script src="' . esc_url(BTA_URL . 'assets/order-form.js?v=' . BTA_VERSION) . '"></script>';
+    }
     bta_foot();
 }
