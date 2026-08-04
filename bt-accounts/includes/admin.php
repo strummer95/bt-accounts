@@ -7,11 +7,25 @@ if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', 'bta_admin_menu');
 function bta_admin_menu() {
+    // 58.6 seats this next to BT Quote (58) even if BT Quote's grouper is absent
+    // or out of date. When the grouper runs, it re-seats the whole cluster anyway.
     add_menu_page(
         'BT Accounts', 'BT Accounts', 'manage_options',
-        'bt-accounts', 'bta_admin_page', 'dashicons-groups', 57
+        'bt-accounts', 'bta_admin_page', 'dashicons-groups', 58.6
     );
 }
+
+/**
+ * Join the grouped BT block in the sidebar. BT Quote owns the grouping and
+ * already lists 'bt accounts' by default; registering here as well means the
+ * grouping still holds if that default list is ever edited. The filter
+ * de-duplicates, so saying it twice is harmless, and this is a no-op when BT
+ * Quote is inactive.
+ */
+add_filter('bt_menu_group_order', function ($want) {
+    if (!in_array('bt accounts', (array) $want, true)) $want[] = 'bt accounts';
+    return $want;
+});
 
 function bta_admin_notice($msg, $type = 'success') {
     echo '<div class="notice notice-' . esc_attr($type) . ' is-dismissible"><p>' . esc_html($msg) . '</p></div>';
