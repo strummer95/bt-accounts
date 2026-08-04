@@ -40,6 +40,11 @@ function bta_handle_admin_post() {
 
     $action = sanitize_key($_POST['bta_action']);
 
+    if ($action === 'save_settings') {
+        update_option('bta_shop_logo', esc_url_raw(wp_unslash(isset($_POST['shop_logo']) ? $_POST['shop_logo'] : '')));
+        bta_admin_notice('Branding saved.');
+    }
+
     if ($action === 'create_account') {
         $r = bta_create_account(array(
             'name'        => isset($_POST['name']) ? wp_unslash($_POST['name']) : '',
@@ -118,12 +123,21 @@ function bta_admin_accounts_list() {
     }
     echo '</tbody></table>';
 
+    echo '<h2 style="margin-top:32px">Portal branding</h2>';
+    echo '<form method="post" style="max-width:640px"><table class="form-table">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="save_settings">';
+    echo '<tr><th><label for="bta-shoplogo">Boomer T&rsquo;s logo</label></th><td>';
+    echo '<input id="bta-shoplogo" name="shop_logo" class="large-text" value="' . esc_attr(get_option('bta_shop_logo', '')) . '" placeholder="https://boomerts.com/wp-content/uploads/...">';
+    echo '<p class="description">Shown on the sign-in card and in the portal header. Use a version that reads well on navy &mdash; white or knockout works best. Leave blank for the Oswald wordmark.</p>';
+    echo '</td></tr></table><p><button class="button">Save branding</button></p></form>';
+
     echo '<h2 style="margin-top:32px">Add an account</h2>';
     echo '<form method="post" style="max-width:520px"><table class="form-table">';
     wp_nonce_field('bta_admin');
     echo '<input type="hidden" name="bta_action" value="create_account">';
     echo '<tr><th><label for="bta-name">Account name</label></th><td><input id="bta-name" name="name" class="regular-text" required></td></tr>';
-    echo '<tr><th><label for="bta-color">Brand colour</label></th><td><input id="bta-color" name="brand_color" type="color" value="#0b5d8f"></td></tr>';
+    echo '<tr><th><label for="bta-color">Brand colour</label></th><td><input id="bta-color" name="brand_color" type="color" value="#27267e"></td></tr>';
     echo '</table><p><button class="button button-primary">Create account</button></p></form>';
 }
 

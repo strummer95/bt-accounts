@@ -72,14 +72,36 @@ function bta_route_portal() {
 
 /* ── Shared chrome ───────────────────────────────────────────────────────── */
 
-function bta_head($title, $accent = '#0b5d8f') {
+/**
+ * Boomer T's own logo for the portal chrome. Set one in BT Accounts → Settings,
+ * or leave it empty for the Oswald wordmark.
+ */
+function bta_shop_logo_url() {
+    return apply_filters('bta_shop_logo_url', (string) get_option('bta_shop_logo', ''));
+}
+
+/** The BOOMER T'S wordmark, apostrophe picked out in magenta. */
+function bta_wordmark($class) {
+    $logo = bta_shop_logo_url();
+    if ($logo) {
+        echo '<img class="bta-shop-logo" src="' . esc_url($logo) . '" alt="Boomer T\'s">';
+        return;
+    }
+    echo '<div class="' . esc_attr($class) . '">Boomer T<em>&rsquo;</em>s</div>';
+}
+
+function bta_head($title, $accent = '#27267e') {
     ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
 <meta charset="<?php bloginfo('charset'); ?>">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#27267e">
 <title><?php echo esc_html($title); ?></title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="<?php echo esc_url(BTA_URL . 'assets/portal.css?v=' . BTA_VERSION); ?>">
 <style>:root { --bta-accent: <?php echo esc_html($accent); ?>; }</style>
 </head>
@@ -97,21 +119,33 @@ function bta_render_login($notice = '') {
     ?>
     <div class="bta-login-wrap">
       <div class="bta-login-card">
-        <div class="bta-login-brand">Boomer T's</div>
-        <h1 class="bta-login-title">Account Sign In</h1>
-        <?php if ($notice) : ?>
-          <div class="bta-alert" role="alert"><?php echo esc_html($notice); ?></div>
-        <?php endif; ?>
-        <form method="post" class="bta-form" autocomplete="off">
-          <input type="hidden" name="bta_login" value="1">
-          <label class="bta-label" for="bta-username">Username</label>
-          <input class="bta-input" id="bta-username" name="username" autocapitalize="none" autocorrect="off" required autofocus>
-          <label class="bta-label" for="bta-password">Password</label>
-          <input class="bta-input" id="bta-password" name="password" type="password" required>
-          <button class="bta-btn" type="submit">Sign in</button>
-        </form>
-        <p class="bta-login-help">Trouble signing in? Call the shop or email
-          <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>.</p>
+        <div class="bta-login-top">
+          <?php
+            $logo = bta_shop_logo_url();
+            if ($logo) echo '<img class="bta-login-logo" src="' . esc_url($logo) . '" alt="Boomer T\'s">';
+            else echo '<div class="bta-login-wordmark">Boomer T<em>&rsquo;</em>s</div>';
+          ?>
+          <div class="bta-login-sub">Account Portal</div>
+        </div>
+        <div class="bta-login-body">
+          <?php if ($notice) : ?>
+            <div class="bta-alert" role="alert"><?php echo esc_html($notice); ?></div>
+          <?php endif; ?>
+          <form method="post" autocomplete="off">
+            <input type="hidden" name="bta_login" value="1">
+            <div class="bta-field">
+              <label class="bta-label" for="bta-username">Username</label>
+              <input class="bta-input" id="bta-username" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+            </div>
+            <div class="bta-field">
+              <label class="bta-label" for="bta-password">Password</label>
+              <input class="bta-input" id="bta-password" name="password" type="password" required>
+            </div>
+            <button class="bta-btn" type="submit">Sign in</button>
+          </form>
+          <p class="bta-login-help">Trouble signing in? Call the shop or email
+            <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>.</p>
+        </div>
       </div>
     </div>
     <?php
@@ -123,20 +157,22 @@ function bta_render_login($notice = '') {
 function bta_render_portal() {
     $user    = bta_current_user();
     $account = $user->account;
-    $accent  = $account->brand_color ? $account->brand_color : '#0b5d8f';
+    $accent  = $account->brand_color ? $account->brand_color : '#27267e';
 
     bta_head($account->name . ' · Boomer T\'s', $accent);
     ?>
     <header class="bta-header">
       <div class="bta-header-inner">
         <div class="bta-header-brand">
-          <?php if ($account->logo_url) : ?>
-            <img class="bta-header-logo" src="<?php echo esc_url($account->logo_url); ?>" alt="<?php echo esc_attr($account->name); ?>">
-          <?php else : ?>
-            <span class="bta-header-name"><?php echo esc_html($account->name); ?></span>
-          <?php endif; ?>
+          <?php bta_wordmark('bta-wordmark'); ?>
           <span class="bta-header-sep"></span>
-          <span class="bta-header-shop">Boomer T's</span>
+          <div class="bta-acct-chip">
+            <?php if ($account->logo_url) : ?>
+              <img class="bta-acct-logo" src="<?php echo esc_url($account->logo_url); ?>" alt="<?php echo esc_attr($account->name); ?>">
+            <?php else : ?>
+              <span class="bta-acct-name"><?php echo esc_html($account->name); ?></span>
+            <?php endif; ?>
+          </div>
         </div>
         <div class="bta-header-user">
           <span class="bta-header-who"><?php echo esc_html($user->display_name ? $user->display_name : $user->username); ?></span>

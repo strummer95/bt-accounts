@@ -74,7 +74,7 @@ function bta_update_account($id, $args) {
 
 function bta_sanitize_hex($hex) {
     $hex = trim((string) $hex);
-    return preg_match('/^#[0-9a-fA-F]{6}$/', $hex) ? strtolower($hex) : '#0b5d8f';
+    return preg_match('/^#[0-9a-fA-F]{6}$/', $hex) ? strtolower($hex) : '#27267e';
 }
 
 /* ── Portal users ────────────────────────────────────────────────────────── */

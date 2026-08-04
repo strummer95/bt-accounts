@@ -29,7 +29,7 @@ function bta_install_schema() {
         name VARCHAR(190) NOT NULL DEFAULT '',
         slug VARCHAR(190) NOT NULL DEFAULT '',
         logo_url TEXT NULL,
-        brand_color VARCHAR(9) NOT NULL DEFAULT '#0b5d8f',
+        brand_color VARCHAR(9) NOT NULL DEFAULT '#27267e',
         pricing_profile LONGTEXT NULL,
         can_buy_garments TINYINT(1) NOT NULL DEFAULT 0,
         requires_po TINYINT(1) NOT NULL DEFAULT 1,
