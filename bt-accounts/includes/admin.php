@@ -54,19 +54,6 @@ function bta_handle_admin_post() {
 
     $action = sanitize_key($_POST['bta_action']);
 
-    if ($action === 'check_updates') {
-        bta_force_update_check();
-        $info = bta_update_manifest();
-        $latest = isset($info['version']) ? $info['version'] : '';
-        if ($latest && version_compare($latest, BTA_VERSION, '>')) {
-            bta_admin_notice('Version ' . $latest . ' is available — update from the Plugins screen.');
-        } elseif ($latest) {
-            bta_admin_notice('Up to date (' . BTA_VERSION . ').');
-        } else {
-            bta_admin_notice('Could not reach GitHub to read the manifest. Try again shortly.', 'warning');
-        }
-    }
-
     if ($action === 'save_settings') {
         update_option('bta_shop_logo', esc_url_raw(wp_unslash(isset($_POST['shop_logo']) ? $_POST['shop_logo'] : '')));
         bta_admin_notice('Branding saved.');
@@ -133,10 +120,6 @@ function bta_handle_admin_post() {
  * check. Same panel shape as BT Quote and BT Catalog.
  */
 function bta_admin_status_panel() {
-    $info   = bta_update_manifest();
-    $latest = isset($info['version']) ? $info['version'] : '?';
-    $behind = ($latest !== '?' && version_compare($latest, BTA_VERSION, '>'));
-
     // Prove the portal route and the pricing bridge at a glance, so a broken
     // deploy shows up here rather than when Sasha tries to sign in.
     $rules      = get_option('rewrite_rules', array());
@@ -153,22 +136,12 @@ function bta_admin_status_panel() {
     $no  = '<span style="color:#b91c1c;font-weight:700">FAIL</span>';
 
     echo '<h2>Status</h2><table class="widefat" style="max-width:680px"><tbody>';
-    echo '<tr><td>Installed version</td><td><strong>' . esc_html(BTA_VERSION) . '</strong></td></tr>';
-    echo '<tr><td>Latest published</td><td>' . esc_html($latest);
-    if ($behind) echo ' &nbsp;<strong style="color:#b26d00">&mdash; update available</strong>';
-    echo '</td></tr>';
     echo '<tr><td>Database tables</td><td>' . ($tables_ok ? $yes : $no . ' &mdash; deactivate and reactivate the plugin to rebuild them') . '</td></tr>';
     echo '<tr><td>Portal URL</td><td>' . ($route_ok ? $yes : $no . ' &mdash; go to <a href="' . esc_url(admin_url('options-permalink.php')) . '">Settings &rarr; Permalinks</a> and press Save to flush the rewrite rules')
         . ' &nbsp;<a href="' . esc_url(home_url('/' . bta_portal_slug() . '/')) . '" target="_blank" rel="noopener">' . esc_html(home_url('/' . bta_portal_slug() . '/')) . '</a></td></tr>';
     echo '<tr><td>Pricing engine (BT Quote)</td><td>' . ($engine_ok ? $yes . ' &nbsp;<span style="color:#666">supplied-item rates available</span>' : $no . ' &mdash; BT Quote is not active, so quoting will not work') . '</td></tr>';
     echo '</tbody></table>';
 
-    echo '<form method="post" style="margin-top:12px">';
-    wp_nonce_field('bta_admin');
-    echo '<input type="hidden" name="bta_action" value="check_updates">';
-    echo '<button class="button">Check for updates</button> ';
-    echo '<a class="button" href="' . esc_url(admin_url('plugins.php')) . '">Go to Plugins</a>';
-    echo '</form>';
 }
 
 /* ── Accounts list ───────────────────────────────────────────────────────── */
@@ -214,6 +187,15 @@ function bta_admin_accounts_list() {
     echo '<tr><th><label for="bta-name">Account name</label></th><td><input id="bta-name" name="name" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="bta-color">Brand colour</label></th><td><input id="bta-color" name="brand_color" type="color" value="#27267e"></td></tr>';
     echo '</table><p><button class="button button-primary">Create account</button></p></form>';
+
+    // Shared BT panel — always the last section, same on every BT plugin.
+    echo '<hr style="margin:28px 0">';
+    bt_admin_updates_panel(array(
+        'slug'     => 'bt-accounts',
+        'version'  => BTA_VERSION,
+        'manifest' => 'bta_update_manifest',
+        'flush'    => 'bta_force_update_check',
+    ));
 }
 
 /* ── Account editor ──────────────────────────────────────────────────────── */
