@@ -54,6 +54,19 @@ function bta_handle_admin_post() {
 
     $action = sanitize_key($_POST['bta_action']);
 
+    if ($action === 'check_updates') {
+        bta_force_update_check();
+        $info = bta_update_manifest();
+        $latest = isset($info['version']) ? $info['version'] : '';
+        if ($latest && version_compare($latest, BTA_VERSION, '>')) {
+            bta_admin_notice('Version ' . $latest . ' is available — update from the Plugins screen.');
+        } elseif ($latest) {
+            bta_admin_notice('Up to date (' . BTA_VERSION . ').');
+        } else {
+            bta_admin_notice('Could not reach GitHub to read the manifest. Try again shortly.', 'warning');
+        }
+    }
+
     if ($action === 'save_settings') {
         update_option('bta_shop_logo', esc_url_raw(wp_unslash(isset($_POST['shop_logo']) ? $_POST['shop_logo'] : '')));
         bta_admin_notice('Branding saved.');
@@ -113,6 +126,51 @@ function bta_handle_admin_post() {
     }
 }
 
+/* ── Status + updates ────────────────────────────────────────────────────── */
+
+/**
+ * Installed vs published version, a live self-test, and the manual update
+ * check. Same panel shape as BT Quote and BT Catalog.
+ */
+function bta_admin_status_panel() {
+    $info   = bta_update_manifest();
+    $latest = isset($info['version']) ? $info['version'] : '?';
+    $behind = ($latest !== '?' && version_compare($latest, BTA_VERSION, '>'));
+
+    // Prove the portal route and the pricing bridge at a glance, so a broken
+    // deploy shows up here rather than when Sasha tries to sign in.
+    $rules      = get_option('rewrite_rules', array());
+    $route_ok   = is_array($rules) && (bool) preg_grep('#^\^?' . preg_quote(bta_portal_slug(), '#') . '/?\$?#', array_keys($rules));
+    $engine_ok  = function_exists('btq_price');
+    $tables_ok  = true;
+    global $wpdb;
+    foreach (array('accounts', 'users', 'sessions', 'login_attempts') as $t) {
+        $name = bta_table($t);
+        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $name)) !== $name) $tables_ok = false;
+    }
+
+    $yes = '<span style="color:#1a7f37;font-weight:700">OK</span>';
+    $no  = '<span style="color:#b91c1c;font-weight:700">FAIL</span>';
+
+    echo '<h2>Status</h2><table class="widefat" style="max-width:680px"><tbody>';
+    echo '<tr><td>Installed version</td><td><strong>' . esc_html(BTA_VERSION) . '</strong></td></tr>';
+    echo '<tr><td>Latest published</td><td>' . esc_html($latest);
+    if ($behind) echo ' &nbsp;<strong style="color:#b26d00">&mdash; update available</strong>';
+    echo '</td></tr>';
+    echo '<tr><td>Database tables</td><td>' . ($tables_ok ? $yes : $no . ' &mdash; deactivate and reactivate the plugin to rebuild them') . '</td></tr>';
+    echo '<tr><td>Portal URL</td><td>' . ($route_ok ? $yes : $no . ' &mdash; go to <a href="' . esc_url(admin_url('options-permalink.php')) . '">Settings &rarr; Permalinks</a> and press Save to flush the rewrite rules')
+        . ' &nbsp;<a href="' . esc_url(home_url('/' . bta_portal_slug() . '/')) . '" target="_blank" rel="noopener">' . esc_html(home_url('/' . bta_portal_slug() . '/')) . '</a></td></tr>';
+    echo '<tr><td>Pricing engine (BT Quote)</td><td>' . ($engine_ok ? $yes . ' &nbsp;<span style="color:#666">supplied-item rates available</span>' : $no . ' &mdash; BT Quote is not active, so quoting will not work') . '</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<form method="post" style="margin-top:12px">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="check_updates">';
+    echo '<button class="button">Check for updates</button> ';
+    echo '<a class="button" href="' . esc_url(admin_url('plugins.php')) . '">Go to Plugins</a>';
+    echo '</form>';
+}
+
 /* ── Accounts list ───────────────────────────────────────────────────────── */
 
 function bta_admin_accounts_list() {
@@ -120,7 +178,10 @@ function bta_admin_accounts_list() {
     echo '<h1>BT Accounts</h1>';
     echo '<p class="description">Contract accounts sign in at <code>' . esc_html(home_url('/' . bta_portal_slug() . '/')) . '</code>. These logins are portal-only — they are not WordPress users and cannot reach wp-admin.</p>';
 
-    echo '<table class="widefat striped" style="max-width:900px;margin-top:16px">';
+    bta_admin_status_panel();
+
+    echo '<h2 style="margin-top:32px">Accounts</h2>';
+    echo '<table class="widefat striped" style="max-width:900px">';
     echo '<thead><tr><th>Account</th><th>Logins</th><th>Status</th><th></th></tr></thead><tbody>';
     if (!$accounts) {
         echo '<tr><td colspan="4">No accounts yet.</td></tr>';
