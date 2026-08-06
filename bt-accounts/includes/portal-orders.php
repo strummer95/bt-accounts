@@ -41,7 +41,7 @@ function bta_portal_orders($user, $account) {
     }
 
     echo '<div class="bta-tablewrap"><table class="bta-table">';
-    echo '<thead><tr><th>Order</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>Status</th></tr></thead><tbody>';
+    echo '<thead><tr><th>Order</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>Status</th><th></th></tr></thead><tbody>';
     foreach ($orders as $o) {
         $url = bta_portal_url('order/' . (int) $o->id);
         echo '<tr>';
@@ -51,6 +51,7 @@ function bta_portal_orders($user, $account) {
         echo '<td>' . esc_html(bta_order_qty($o->id)) . '</td>';
         echo '<td>' . esc_html($o->submitted_at ? date_i18n('M j, Y', strtotime($o->submitted_at)) : '—') . '</td>';
         echo '<td>' . bta_status_pill($o->status) . '</td>';
+        echo '<td><a class="bta-link-strong" href="' . esc_url(bta_order_print_url($o->id)) . '" target="_blank" rel="noopener">Print</a></td>';
         echo '</tr>';
     }
     echo '</tbody></table></div>';
@@ -86,7 +87,10 @@ function bta_portal_order_detail($user, $account, $order_id) {
     foreach ($art as $a) $artby[(int) $a->id] = $a;
 
     echo '<p class="bta-crumb"><a href="' . esc_url(bta_portal_url()) . '">&larr; Orders</a></p>';
-    echo '<div class="bta-page-head"><h1 class="bta-h1">' . esc_html($order->order_number) . '</h1>' . bta_status_pill($order->status) . '</div>';
+    echo '<div class="bta-page-head"><h1 class="bta-h1">' . esc_html($order->order_number) . '</h1>';
+    echo '<div style="display:flex;align-items:center;gap:12px">' . bta_status_pill($order->status)
+       . '<a class="bta-btn-sm" href="' . esc_url(bta_order_print_url($order->id)) . '" target="_blank" rel="noopener">Print order</a></div>';
+    echo '</div>';
 
     echo '<div class="bta-cards">';
 

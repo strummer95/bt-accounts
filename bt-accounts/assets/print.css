@@ -1,0 +1,255 @@
+/* BT Accounts — printable work order.
+   Self-contained. Shares nothing with portal.css so a change to the portal
+   chrome can never reflow the printed sheet. */
+
+:root {
+  --bta-accent: #27267e;
+  --btp-navy:   #27267e;
+  --btp-ink:    #22242a;
+  --btp-muted:  #6b7280;
+  --btp-line:   #d8dbe2;
+  --btp-faint:  #eceef2;
+}
+
+* { box-sizing: border-box; }
+
+.btp-body {
+  margin: 0;
+  padding: 0 0 40px;
+  background: #f4f5f7;
+  color: var(--btp-ink);
+  font: 15px/1.5 Tahoma, "Segoe UI", Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Screen-only toolbar ─────────────────────────────────────────────────── */
+
+.btp-bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--btp-navy);
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.btp-back {
+  color: #fff; opacity: .85; text-decoration: none;
+  font-size: 14px; letter-spacing: .01em;
+}
+.btp-back:hover { opacity: 1; text-decoration: underline; }
+.btp-print {
+  appearance: none; border: 0; cursor: pointer;
+  background: #e6007e; color: #fff;
+  font: 600 14px/1 Tahoma, Arial, sans-serif;
+  letter-spacing: .02em;
+  padding: 11px 20px; border-radius: 4px;
+}
+.btp-print:hover { background: #c4006c; }
+
+/* ── Sheet ───────────────────────────────────────────────────────────────── */
+
+.btp-sheet {
+  max-width: 8.5in;
+  margin: 24px auto;
+  padding: 0.5in 0.55in 0.45in;
+  background: #fff;
+  border: 1px solid #e3e5ea;
+  box-shadow: 0 2px 14px rgba(20,22,30,.08);
+}
+
+.btp-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 14px;
+  border-bottom: 3px solid var(--btp-navy);
+}
+.btp-shoplogo { height: 44px; display: block; }
+.btp-wordmark {
+  font: 700 30px/1 Oswald, "Arial Narrow", Arial, sans-serif;
+  letter-spacing: .03em; text-transform: uppercase; color: var(--btp-navy);
+}
+.btp-wordmark em { font-style: normal; color: #e6007e; }
+.btp-shopmeta { margin-top: 5px; font-size: 13px; color: var(--btp-muted); }
+
+.btp-head-right { text-align: right; }
+.btp-doctype {
+  font: 600 13px/1 Oswald, "Arial Narrow", Arial, sans-serif;
+  text-transform: uppercase; letter-spacing: .16em; color: var(--btp-muted);
+}
+.btp-number {
+  margin-top: 4px;
+  font: 700 30px/1.05 Oswald, "Arial Narrow", Arial, sans-serif;
+  letter-spacing: .01em; color: var(--btp-ink);
+}
+.btp-status {
+  display: inline-block; margin-top: 7px;
+  padding: 4px 11px; border-radius: 999px;
+  background: var(--bta-accent); color: #fff;
+  font: 600 13px/1.35 Tahoma, Arial, sans-serif;
+}
+
+.btp-acctstrip {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 0; margin-bottom: 4px;
+  border-bottom: 1px solid var(--btp-faint);
+}
+.btp-acctlogo { height: 30px; max-width: 150px; object-fit: contain; }
+.btp-acctname {
+  font: 600 19px/1.2 Oswald, "Arial Narrow", Arial, sans-serif;
+  letter-spacing: .01em;
+}
+.btp-acctpo { margin-left: auto; font-size: 15px; color: var(--btp-muted); }
+.btp-acctpo strong { color: var(--btp-ink); }
+
+/* ── Column blocks ───────────────────────────────────────────────────────── */
+
+.btp-cols {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 22px; padding: 18px 0 6px;
+}
+.btp-h2 {
+  margin: 0 0 8px;
+  font: 600 14px/1.2 Oswald, "Arial Narrow", Arial, sans-serif;
+  text-transform: uppercase; letter-spacing: .09em; color: var(--btp-navy);
+}
+.btp-h2-wide { margin-top: 22px; padding-bottom: 6px; border-bottom: 1px solid var(--btp-faint); }
+
+.btp-dl { margin: 0; font-size: 14px; }
+.btp-dl dt {
+  font-size: 13px; color: var(--btp-muted);
+  margin-top: 7px;
+}
+.btp-dl dd { margin: 1px 0 0; font-size: 15px; font-weight: 600; }
+
+/* ── Items table ─────────────────────────────────────────────────────────── */
+
+.btp-table {
+  width: 100%; border-collapse: collapse; margin-top: 10px;
+  font-size: 14px;
+}
+.btp-table thead th {
+  background: var(--btp-navy); color: #fff; text-align: left;
+  padding: 8px 9px;
+  font: 600 13px/1.3 Tahoma, Arial, sans-serif;
+  letter-spacing: .02em;
+}
+.btp-table tbody td {
+  padding: 9px; border-bottom: 1px solid var(--btp-faint);
+  vertical-align: top; font-size: 14px;
+}
+.btp-num { color: var(--btp-muted); font-size: 13px; }
+.btp-style { font-size: 15px; }
+.btp-sub { margin-top: 2px; font-size: 13px; color: var(--btp-muted); }
+.btp-qty { text-align: right; font-weight: 700; font-size: 15px; }
+
+.btp-sizes { line-height: 2; }
+.btp-size {
+  display: inline-block; margin: 0 4px 0 0;
+  padding: 2px 7px; border: 1px solid var(--btp-line); border-radius: 3px;
+  background: #fafbfc; font-size: 13px; white-space: nowrap;
+}
+.btp-size b {
+  display: inline-block; margin-right: 5px;
+  color: var(--btp-navy); font-size: 13px;
+}
+
+.btp-noterow td {
+  background: #fafbfc; font-size: 13px; color: #3f4552;
+  padding-top: 6px; padding-bottom: 6px;
+}
+.btp-notelabel {
+  display: inline-block; margin-right: 6px;
+  font-weight: 700; color: var(--btp-muted); text-transform: uppercase;
+  font-size: 13px; letter-spacing: .04em;
+}
+
+.btp-table tfoot td {
+  padding: 10px 9px; border-top: 2px solid var(--btp-navy);
+  font-size: 15px;
+}
+.btp-totlabel { text-align: right; font-weight: 600; }
+.btp-tot { font-size: 17px; }
+
+/* ── Artwork ─────────────────────────────────────────────────────────────── */
+
+.btp-art {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-top: 12px;
+}
+.btp-artcard {
+  border: 1px solid var(--btp-line); border-radius: 5px;
+  padding: 9px; text-align: center;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.btp-artthumb {
+  display: flex; align-items: center; justify-content: center;
+  height: 96px; margin-bottom: 8px;
+  background: #fafbfc; border-radius: 3px;
+}
+.btp-artthumb img { max-width: 100%; max-height: 96px; object-fit: contain; }
+.btp-artext {
+  font: 700 17px/1 Oswald, "Arial Narrow", Arial, sans-serif;
+  color: var(--btp-muted); letter-spacing: .06em;
+}
+.btp-artlabel { font-size: 14px; font-weight: 700; }
+.btp-artfile { font-size: 13px; color: var(--btp-muted); word-break: break-all; }
+
+.btp-notes {
+  margin-top: 10px; padding: 13px;
+  background: #fafbfc; border: 1px solid var(--btp-faint); border-radius: 4px;
+  font-size: 15px; line-height: 1.6;
+}
+
+/* ── Sign-off ────────────────────────────────────────────────────────────── */
+
+.btp-signoff {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 26px; margin-top: 34px;
+  break-inside: avoid; page-break-inside: avoid;
+}
+.btp-sigline {
+  display: block; height: 34px;
+  border-bottom: 1px solid var(--btp-line);
+}
+.btp-siglabel {
+  display: block; margin-top: 6px;
+  font-size: 13px; color: var(--btp-muted);
+}
+
+.btp-foot {
+  display: flex; justify-content: space-between;
+  margin-top: 26px; padding-top: 10px;
+  border-top: 1px solid var(--btp-faint);
+  font-size: 13px; color: var(--btp-muted);
+}
+
+/* ── Print ───────────────────────────────────────────────────────────────── */
+
+@page { size: letter portrait; margin: 0.45in; }
+
+@media print {
+  .btp-body { background: #fff; padding: 0; }
+  .btp-noprint { display: none !important; }
+  .btp-sheet {
+    max-width: none; margin: 0; padding: 0;
+    border: 0; box-shadow: none;
+  }
+  .btp-table thead { display: table-header-group; }
+  .btp-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .btp-cols, .btp-head { break-inside: avoid; page-break-inside: avoid; }
+  a { text-decoration: none; color: inherit; }
+}
+
+/* ── Narrow screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .btp-sheet { margin: 12px; padding: 20px 16px; }
+  .btp-head { flex-direction: column; gap: 14px; }
+  .btp-head-right { text-align: left; }
+  .btp-cols { grid-template-columns: 1fr; gap: 16px; }
+  .btp-art { grid-template-columns: repeat(2, 1fr); }
+  .btp-signoff { grid-template-columns: 1fr; gap: 18px; }
+  .btp-table { font-size: 13px; }
+  .btp-table thead th { font-size: 13px; }
+}

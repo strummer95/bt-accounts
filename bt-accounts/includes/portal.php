@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) exit;
 add_action('init', 'bta_register_rewrite');
 function bta_register_rewrite() {
     add_rewrite_rule('^' . bta_portal_slug() . '/?$', 'index.php?bta_portal=1', 'top');
+    add_rewrite_rule('^' . bta_portal_slug() . '/order/([0-9]+)/print/?$', 'index.php?bta_portal=1&bta_view=order&bta_id=$matches[1]&bta_print=1', 'top');
     add_rewrite_rule('^' . bta_portal_slug() . '/order/([0-9]+)/?$', 'index.php?bta_portal=1&bta_view=order&bta_id=$matches[1]', 'top');
     add_rewrite_rule('^' . bta_portal_slug() . '/([a-z0-9_-]+)/?$', 'index.php?bta_portal=1&bta_view=$matches[1]', 'top');
 }
@@ -20,6 +21,7 @@ add_filter('query_vars', function ($vars) {
     $vars[] = 'bta_portal';
     $vars[] = 'bta_view';
     $vars[] = 'bta_id';
+    $vars[] = 'bta_print';
     return $vars;
 });
 
@@ -65,6 +67,13 @@ function bta_route_portal() {
             wp_safe_redirect(home_url('/' . bta_portal_slug() . '/'));
             exit;
         }
+    }
+
+    // The printable work order is its own document — no portal chrome, and the
+    // shop can open one straight from wp-admin without a portal session.
+    if ($view === 'order' && get_query_var('bta_print')) {
+        bta_render_order_print((int) get_query_var('bta_id'));
+        exit;
     }
 
     if (!bta_is_logged_in()) { bta_render_login($notice); exit; }

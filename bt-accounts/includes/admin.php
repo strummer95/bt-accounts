@@ -59,6 +59,32 @@ function bta_handle_admin_post() {
         bta_admin_notice('Branding saved.');
     }
 
+    if ($action === 'save_notify') {
+        update_option('bta_notify_email',    sanitize_text_field(wp_unslash(isset($_POST['notify_email']) ? $_POST['notify_email'] : '')));
+        update_option('bta_notify_from',     sanitize_email(wp_unslash(isset($_POST['notify_from']) ? $_POST['notify_from'] : '')));
+        update_option('bta_notify_customer', !empty($_POST['notify_customer']) ? 1 : 0);
+        update_option('bta_notify_status',   !empty($_POST['notify_status']) ? 1 : 0);
+        bta_admin_notice('Notifications saved.');
+    }
+
+    if ($action === 'test_notify') {
+        $to = bta_notify_recipients();
+        if (!$to) {
+            bta_admin_notice('No valid notification address to send to.', 'error');
+        } else {
+            $body = bta_mail_wrap(
+                'Test notification',
+                null,
+                '#27267e',
+                '<p style="' . bta_mail_p() . '">If you are reading this, order notifications from the account portal will reach you at '
+                    . esc_html(implode(', ', $to)) . '.</p>'
+            );
+            $sent = wp_mail($to, 'BT Accounts — test notification', $body, bta_mail_headers());
+            if ($sent) bta_admin_notice('Test sent to ' . implode(', ', $to) . '.');
+            else bta_admin_notice('WordPress could not send the test. Check the site\'s SMTP settings.', 'error');
+        }
+    }
+
     if ($action === 'create_account') {
         $r = bta_create_account(array(
             'name'        => isset($_POST['name']) ? wp_unslash($_POST['name']) : '',
@@ -179,6 +205,36 @@ function bta_admin_accounts_list() {
     echo '<input id="bta-shoplogo" name="shop_logo" class="large-text" value="' . esc_attr(get_option('bta_shop_logo', '')) . '" placeholder="https://boomerts.com/wp-content/uploads/...">';
     echo '<p class="description">Shown on the sign-in card and in the portal header. Use a version that reads well on navy &mdash; white or knockout works best. Leave blank for the Oswald wordmark.</p>';
     echo '</td></tr></table><p><button class="button">Save branding</button></p></form>';
+
+    echo '<h2 style="margin-top:32px">Order notifications</h2>';
+    echo '<form method="post" style="max-width:640px"><table class="form-table">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="save_notify">';
+
+    echo '<tr><th><label for="bta-notify-email">Send new orders to</label></th><td>';
+    echo '<input id="bta-notify-email" name="notify_email" class="large-text" value="' . esc_attr(get_option('bta_notify_email', '')) . '" placeholder="' . esc_attr(get_option('admin_email')) . '">';
+    echo '<p class="description">Who gets an email the moment an account submits an order. Separate several addresses with commas. Blank falls back to the WordPress admin address (<code>' . esc_html(get_option('admin_email')) . '</code>).</p>';
+    echo '</td></tr>';
+
+    echo '<tr><th><label for="bta-notify-from">Send from</label></th><td>';
+    echo '<input id="bta-notify-from" name="notify_from" class="regular-text" value="' . esc_attr(get_option('bta_notify_from', '')) . '" placeholder="orders@boomerts.com">';
+    echo '<p class="description">The From address on portal email. Must be an address on this domain or the mail will be filtered. Blank uses <code>orders@' . esc_html(preg_replace('/^www\./i', '', (string) wp_parse_url(home_url(), PHP_URL_HOST))) . '</code>.</p>';
+    echo '</td></tr>';
+
+    echo '<tr><th>Also email the account</th><td>';
+    echo '<label><input type="checkbox" name="notify_customer" value="1"' . checked(get_option('bta_notify_customer', 1), 1, false) . '> Send the person who submitted a receipt with a copy of their order</label><br>';
+    echo '<label><input type="checkbox" name="notify_status" value="1"' . checked(get_option('bta_notify_status', 0), 1, false) . '> Email them again whenever the order status changes</label>';
+    echo '<p class="description">Status email follows the job card, so every move on the board reaches them. Leave off if you would rather tell them yourself.</p>';
+    echo '</td></tr>';
+
+    echo '</table><p><button class="button button-primary">Save notifications</button></p></form>';
+
+    echo '<form method="post" style="margin-top:-8px">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="test_notify">';
+    echo '<button class="button">Send a test email</button>';
+    echo '<span class="description" style="margin-left:10px">Sends to the address above so you can prove SMTP works before a real order arrives.</span>';
+    echo '</form>';
 
     echo '<h2 style="margin-top:32px">Add an account</h2>';
     echo '<form method="post" style="max-width:520px"><table class="form-table">';

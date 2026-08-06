@@ -70,7 +70,7 @@ function bta_admin_orders_list() {
     echo '</ul><div style="clear:both"></div>';
 
     echo '<table class="widefat striped" style="margin-top:12px"><thead><tr>';
-    echo '<th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>Job card</th><th>Status</th>';
+    echo '<th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>Job card</th><th>Status</th><th></th>';
     echo '</tr></thead><tbody>';
     if (!$orders) echo '<tr><td colspan="8">No orders.</td></tr>';
     foreach ($orders as $o) {
@@ -85,6 +85,7 @@ function bta_admin_orders_list() {
         echo '<td>' . esc_html($o->submitted_at ? date_i18n('M j, Y', strtotime($o->submitted_at)) : '—') . '</td>';
         echo '<td>' . ($o->job_id ? '#' . (int) $o->job_id : '<span style="color:#b26d00">not raised</span>') . '</td>';
         echo '<td>' . esc_html(bta_status_label($o->status)) . '</td>';
+        echo '<td><a href="' . esc_url(bta_order_print_url($o->id)) . '" target="_blank" rel="noopener">Print</a></td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
@@ -100,7 +101,8 @@ function bta_admin_order_detail($order) {
     foreach ($art as $a) $artby[(int) $a->id] = $a;
 
     echo '<h1>' . esc_html($order->order_number) . ' <span style="font-weight:400;color:#666">&mdash; ' . esc_html($acct ? $acct->name : '') . '</span></h1>';
-    echo '<p><a href="' . esc_url(admin_url('admin.php?page=bt-accounts-orders')) . '">&larr; All orders</a></p>';
+    echo '<p><a href="' . esc_url(admin_url('admin.php?page=bt-accounts-orders')) . '">&larr; All orders</a>';
+    echo ' &nbsp;<a class="button" href="' . esc_url(bta_order_print_url($order->id)) . '" target="_blank" rel="noopener">Print work order</a></p>';
 
     echo '<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">';
 
