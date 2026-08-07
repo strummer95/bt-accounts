@@ -85,6 +85,13 @@ function bta_handle_admin_post() {
         }
     }
 
+    if ($action === 'clear_lockout') {
+        $username = isset($_POST['username']) ? wp_unslash($_POST['username']) : '';
+        $n = bta_clear_lockout($username);
+        bta_admin_notice(sprintf('Lockout cleared for %s (and %d IP%s that tried it). They can sign in again immediately.',
+            $username, $n, $n === 1 ? '' : 's'));
+    }
+
     if ($action === 'create_account') {
         $r = bta_create_account(array(
             'name'        => isset($_POST['name']) ? wp_unslash($_POST['name']) : '',
@@ -327,6 +334,8 @@ function bta_admin_account_editor($a) {
     echo '<p class="description">You set it and pass it along; there is no self-serve reset yet. One login per person rather than one per company keeps order history attributable and lets you disable someone without disrupting everyone else.</p></td></tr>';
     echo '<tr><th>Permissions</th><td><label><input type="checkbox" name="is_account_admin" value="1"> Sees all orders on the account (otherwise only their own)</label></td></tr>';
     echo '</table><p><button class="button button-primary">Create login</button></p></form>';
+
+    bta_render_signin_diagnostics($a, $users);
 
     // Pricing
     echo '<h2 style="margin-top:32px">Pricing</h2>';
