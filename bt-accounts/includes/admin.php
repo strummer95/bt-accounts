@@ -64,6 +64,7 @@ function bta_handle_admin_post() {
         update_option('bta_notify_from',     sanitize_email(wp_unslash(isset($_POST['notify_from']) ? $_POST['notify_from'] : '')));
         update_option('bta_notify_customer', !empty($_POST['notify_customer']) ? 1 : 0);
         update_option('bta_notify_status',   !empty($_POST['notify_status']) ? 1 : 0);
+        update_option('bta_specific_errors', !empty($_POST['specific_errors']) ? 1 : 0);
         bta_admin_notice('Notifications saved.');
     }
 
@@ -232,6 +233,11 @@ function bta_admin_accounts_list() {
     echo '<label><input type="checkbox" name="notify_customer" value="1"' . checked(get_option('bta_notify_customer', 1), 1, false) . '> Send the person who submitted a receipt with a copy of their order</label><br>';
     echo '<label><input type="checkbox" name="notify_status" value="1"' . checked(get_option('bta_notify_status', 0), 1, false) . '> Email them again whenever the order status changes</label>';
     echo '<p class="description">Status email follows the job card, so every move on the board reaches them. Leave off if you would rather tell them yourself.</p>';
+    echo '</td></tr>';
+
+    echo '<tr><th>Sign-in messages</th><td>';
+    echo '<label><input type="checkbox" name="specific_errors" value="1"' . checked(get_option('bta_specific_errors', 1), 1, false) . '> Tell people exactly why a sign-in failed</label>';
+    echo '<p class="description">On: the form says whether the username is unknown, the password is wrong, or the login is locked &mdash; so they can fix it themselves instead of emailing you. Off: one vague message for every failure, which stops an attacker discovering which usernames exist. Worth leaving on while logins are created by hand and there is no public sign-up.</p>';
     echo '</td></tr>';
 
     echo '</table><p><button class="button button-primary">Save notifications</button></p></form>';

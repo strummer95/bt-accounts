@@ -30,15 +30,7 @@ function bta_user_sessions($user_id) {
     ));
 }
 
-/** Failed attempts against one username inside the lockout window. */
-function bta_user_attempt_count($username) {
-    global $wpdb;
-    $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - (BTA_LOCKOUT_MINS * 60));
-    return (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM " . bta_table('login_attempts') . " WHERE username = %s AND attempted_at > %s",
-        bta_sanitize_username($username), $since
-    ));
-}
+/* bta_user_attempt_count() lives in auth.php — the login path needs it too. */
 
 /** Clear the throttle for one username and every IP that tried it. */
 function bta_clear_lockout($username) {

@@ -64,7 +64,10 @@ function bta_route_portal() {
         if (is_wp_error($r)) {
             $notice = $r->get_error_message();
         } else {
-            wp_safe_redirect(home_url('/' . bta_portal_slug() . '/'));
+            // ?signedin=1 is a cookie probe. If the next request comes back
+            // without a session, the sign-in worked and the cookie was dropped
+            // — otherwise that failure is silent and looks like a bad password.
+            wp_safe_redirect(add_query_arg('signedin', '1', home_url('/' . bta_portal_slug() . '/')));
             exit;
         }
     }
@@ -76,7 +79,15 @@ function bta_route_portal() {
         exit;
     }
 
-    if (!bta_is_logged_in()) { bta_render_login($notice); exit; }
+    if (!bta_is_logged_in()) {
+        if ($notice === '' && !empty($_GET['signedin'])) {
+            $notice = 'Your username and password were correct, but your browser did not keep the sign-in. '
+                    . 'That is usually cookies being blocked for this site, or a private/locked-down browser window. '
+                    . 'Allow cookies for boomerts.com and try again, or email orders@boomerts.com.';
+        }
+        bta_render_login($notice);
+        exit;
+    }
 
     $user    = bta_current_user();
     $account = $user->account;

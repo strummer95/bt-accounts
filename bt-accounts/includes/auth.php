@@ -63,6 +63,53 @@ function bta_is_locked_out($username) {
     return $by_user >= BTA_MAX_ATTEMPTS;
 }
 
+/** Failed attempts against a username inside the lockout window. */
+function bta_user_attempt_count($username) {
+    global $wpdb;
+    $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - (BTA_LOCKOUT_MINS * 60));
+    return (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM " . bta_table('login_attempts') . " WHERE username = %s AND attempted_at > %s",
+        bta_sanitize_username($username), $since
+    ));
+}
+
+/**
+ * Minutes left on a lockout, or 0 if not locked. Measured from the oldest
+ * attempt still inside the window, since that is the one that ages out first.
+ */
+function bta_lockout_remaining($username) {
+    global $wpdb;
+    $table = bta_table('login_attempts');
+    $now   = strtotime(current_time('mysql'));
+    $since = gmdate('Y-m-d H:i:s', $now - (BTA_LOCKOUT_MINS * 60));
+
+    $oldest = $wpdb->get_var($wpdb->prepare(
+        "SELECT MIN(attempted_at) FROM $table WHERE ip = %s AND attempted_at > %s
+         HAVING COUNT(*) >= %d",
+        bta_client_ip(), $since, BTA_MAX_ATTEMPTS
+    ));
+    if (!$oldest) {
+        $oldest = $wpdb->get_var($wpdb->prepare(
+            "SELECT MIN(attempted_at) FROM $table WHERE username = %s AND attempted_at > %s
+             HAVING COUNT(*) >= %d",
+            bta_sanitize_username($username), $since, BTA_MAX_ATTEMPTS
+        ));
+    }
+    if (!$oldest) return 0;
+
+    $mins = (int) ceil((strtotime($oldest) + (BTA_LOCKOUT_MINS * 60) - $now) / 60);
+    return $mins > 0 ? $mins : 1;
+}
+
+/**
+ * Whether the form names the actual fault. Safe here because the portal has no
+ * public registration — logins are created by hand — so there is no list to
+ * enumerate. Turn it off under BT Accounts if that ever stops being true.
+ */
+function bta_specific_errors() {
+    return (bool) apply_filters('bta_specific_errors', get_option('bta_specific_errors', 1));
+}
+
 function bta_clear_attempts($username) {
     global $wpdb;
     $table = bta_table('login_attempts');
@@ -78,30 +125,68 @@ function bta_clear_attempts($username) {
  * discover which usernames exist.
  */
 function bta_login($username, $password) {
-    $generic = new WP_Error('bta_bad_login', 'That username and password did not match.');
+    $specific = bta_specific_errors();
+    $generic  = new WP_Error('bta_bad_login', 'That username and password did not match.');
+    $raw      = trim((string) $username);
 
-    if (bta_is_locked_out($username)) {
-        return new WP_Error('bta_locked', 'Too many attempts. Try again in ' . BTA_LOCKOUT_MINS . ' minutes.');
+    // Empty fields are always named — nothing to leak, and it is the single
+    // most common reason a form appears to "do nothing".
+    if ($raw === '')              return new WP_Error('bta_no_username', 'Enter your username.');
+    if ((string) $password === '') return new WP_Error('bta_no_password', 'Enter your password.');
+
+    $locked = bta_lockout_remaining($raw);
+    if ($locked > 0) {
+        return new WP_Error('bta_locked', sprintf(
+            'Too many failed attempts. For security this sign-in is paused for another %d minute%s. If you are not sure of your password, email orders@boomerts.com and we will reset it.',
+            $locked, $locked === 1 ? '' : 's'
+        ));
     }
 
-    $user = bta_get_user_by_username($username);
-    if (!$user || $user->status !== 'active') {
-        bta_record_attempt($username);
-        return $generic;
+    $user = bta_get_user_by_username($raw);
+
+    if (!$user) {
+        bta_record_attempt($raw);
+        if (!$specific) return $generic;
+        $msg = 'We do not recognise the username ' . $raw . '.';
+        if (strpos($raw, '@') !== false) {
+            $msg .= ' That looks like an email address — sign in with the username the shop set up for you instead.';
+        } else {
+            $msg .= ' Check it against the one we sent you, or email orders@boomerts.com.';
+        }
+        return new WP_Error('bta_no_user', $msg);
+    }
+
+    if ($user->status !== 'active') {
+        bta_record_attempt($raw);
+        if (!$specific) return $generic;
+        return new WP_Error('bta_user_disabled', 'This login has been turned off. Email orders@boomerts.com and we will switch it back on.');
     }
 
     if (!wp_check_password((string) $password, $user->pass_hash)) {
-        bta_record_attempt($username);
-        return $generic;
+        bta_record_attempt($raw);
+        if (!$specific) return $generic;
+
+        $left = BTA_MAX_ATTEMPTS - bta_user_attempt_count($raw);
+        $msg  = 'That password is not right. The username is correct, so it is just the password.';
+        if ($left <= 0) {
+            // This attempt is the one that tripped the throttle — say so now,
+            // rather than leaving them to discover it on the next try.
+            $msg .= sprintf(' That was the last attempt, so sign-in is now paused for %d minutes. Email orders@boomerts.com if you need it reset sooner.', BTA_LOCKOUT_MINS);
+        } elseif ($left <= 2) {
+            $msg .= sprintf(' %d attempt%s left before sign-in is paused for %d minutes.',
+                $left, $left === 1 ? '' : 's', BTA_LOCKOUT_MINS);
+        }
+        return new WP_Error('bta_bad_password', $msg);
     }
 
     $account = bta_get_account($user->account_id);
     if (!$account || $account->status !== 'active') {
-        bta_record_attempt($username);
-        return $generic;
+        bta_record_attempt($raw);
+        if (!$specific) return $generic;
+        return new WP_Error('bta_account_disabled', 'Your company account is not active at the moment. Email orders@boomerts.com and we will sort it out.');
     }
 
-    bta_clear_attempts($username);
+    bta_clear_attempts($raw);
     bta_start_session($user);
     return $user;
 }
