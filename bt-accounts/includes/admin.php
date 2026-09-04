@@ -220,8 +220,8 @@ function bta_admin_accounts_list() {
     echo '<input type="hidden" name="bta_action" value="save_notify">';
 
     echo '<tr><th><label for="bta-notify-email">Send new orders to</label></th><td>';
-    echo '<input id="bta-notify-email" name="notify_email" class="large-text" value="' . esc_attr(get_option('bta_notify_email', '')) . '" placeholder="' . esc_attr(get_option('admin_email')) . '">';
-    echo '<p class="description">Who gets an email the moment an account submits an order. Separate several addresses with commas. Blank falls back to the WordPress admin address (<code>' . esc_html(get_option('admin_email')) . '</code>).</p>';
+    echo '<input id="bta-notify-email" name="notify_email" class="large-text" value="' . esc_attr(get_option('bta_notify_email', '')) . '" placeholder="' . esc_attr(bta_notify_default_recipient()) . '">';
+    echo '<p class="description">Who gets an email the moment an account submits an order. Separate several addresses with commas. Blank falls back to <code>' . esc_html(bta_notify_default_recipient()) . '</code>.</p>';
     echo '</td></tr>';
 
     echo '<tr><th><label for="bta-notify-from">Send from</label></th><td>';

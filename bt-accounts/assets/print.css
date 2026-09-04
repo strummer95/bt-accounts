@@ -224,26 +224,13 @@
   font-size: 13px; color: var(--btp-muted);
 }
 
-/* ── Print ───────────────────────────────────────────────────────────────── */
-
-@page { size: letter portrait; margin: 0.45in; }
-
-@media print {
-  .btp-body { background: #fff; padding: 0; }
-  .btp-noprint { display: none !important; }
-  .btp-sheet {
-    max-width: none; margin: 0; padding: 0;
-    border: 0; box-shadow: none;
-  }
-  .btp-table thead { display: table-header-group; }
-  .btp-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .btp-cols, .btp-head { break-inside: avoid; page-break-inside: avoid; }
-  a { text-decoration: none; color: inherit; }
-}
-
 /* ── Narrow screens ──────────────────────────────────────────────────────── */
+/* Scoped to `screen` deliberately. A letter page at 0.45in margins is about
+   7.6in wide, which the browser reports as ~730 CSS px — so an unscoped
+   max-width:760px block applies while printing and collapses the three
+   columns into one tall stack. That is what pushed the sheet onto page two. */
 
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
   .btp-sheet { margin: 12px; padding: 20px 16px; }
   .btp-head { flex-direction: column; gap: 14px; }
   .btp-head-right { text-align: left; }
@@ -252,4 +239,76 @@
   .btp-signoff { grid-template-columns: 1fr; gap: 18px; }
   .btp-table { font-size: 13px; }
   .btp-table thead th { font-size: 13px; }
+}
+
+/* ── Print ───────────────────────────────────────────────────────────────── */
+
+@page { size: letter portrait; margin: 0.4in; }
+
+@media print {
+  .btp-body { background: #fff; padding: 0; font-size: 13px; line-height: 1.4; }
+  .btp-noprint { display: none !important; }
+  .btp-sheet { max-width: none; margin: 0; padding: 0; border: 0; box-shadow: none; }
+
+  /* Layout is held explicitly rather than inherited, so no future screen
+     breakpoint can reflow the printed sheet by accident. */
+  .btp-head       { flex-direction: row; gap: 24px; padding-bottom: 10px; }
+  .btp-head-right { text-align: right; }
+  .btp-cols       { grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 12px 0 2px; }
+  .btp-art        { grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+  .btp-signoff    { grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 20px; }
+
+  /* Tightened type and spacing. A typical order now lands on one sheet;
+     long ones break at a row boundary instead of mid-item. */
+  .btp-wordmark  { font-size: 26px; }
+  .btp-shoplogo  { height: 38px; }
+  .btp-shopmeta  { margin-top: 3px; font-size: 11px; }
+  .btp-doctype   { font-size: 11px; }
+  .btp-number    { font-size: 26px; }
+  .btp-status    { margin-top: 5px; padding: 3px 9px; font-size: 11px; }
+
+  .btp-acctstrip { padding: 9px 0; margin-bottom: 0; }
+  .btp-acctlogo  { height: 26px; max-width: 130px; }
+  .btp-acctname  { font-size: 17px; }
+  .btp-acctpo    { font-size: 13px; }
+
+  .btp-h2        { margin-bottom: 5px; font-size: 13px; }
+  .btp-h2-wide   { margin-top: 14px; padding-bottom: 4px; }
+  .btp-dl        { font-size: 12px; }
+  .btp-dl dt     { margin-top: 5px; font-size: 11px; }
+  .btp-dl dd     { font-size: 13px; }
+
+  .btp-table          { margin-top: 7px; font-size: 12px; }
+  .btp-table thead th { padding: 6px 8px; font-size: 11px; }
+  .btp-table tbody td { padding: 6px 8px; font-size: 12px; }
+  .btp-style          { font-size: 13px; }
+  .btp-sub            { font-size: 11px; }
+  .btp-num            { font-size: 11px; }
+  .btp-qty            { font-size: 13px; }
+  .btp-sizes          { line-height: 1.7; }
+  .btp-size           { padding: 1px 6px; font-size: 11px; }
+  .btp-size b         { font-size: 11px; margin-right: 4px; }
+  .btp-noterow td     { padding-top: 5px; padding-bottom: 5px; font-size: 11px; }
+  .btp-notelabel      { font-size: 11px; }
+  .btp-table tfoot td { padding: 7px 8px; font-size: 13px; }
+  .btp-tot            { font-size: 15px; }
+
+  .btp-artcard      { padding: 7px; }
+  .btp-artthumb     { height: 64px; margin-bottom: 5px; }
+  .btp-artthumb img { max-height: 64px; }
+  .btp-artext       { font-size: 14px; }
+  .btp-artlabel     { font-size: 12px; }
+  .btp-artfile      { font-size: 10px; }
+
+  .btp-notes    { margin-top: 8px; padding: 9px; font-size: 12px; line-height: 1.45; }
+  .btp-sigline  { height: 26px; }
+  .btp-siglabel { margin-top: 4px; font-size: 11px; }
+  .btp-foot     { margin-top: 16px; padding-top: 7px; font-size: 11px; }
+
+  .btp-table thead { display: table-header-group; }
+  .btp-table tr    { break-inside: avoid; page-break-inside: avoid; }
+  .btp-cols, .btp-head, .btp-acctstrip, .btp-notes {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  a { text-decoration: none; color: inherit; }
 }

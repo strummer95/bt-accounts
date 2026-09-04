@@ -15,10 +15,35 @@ if (!defined('ABSPATH')) exit;
 
 /* ── Settings ────────────────────────────────────────────────────────────── */
 
-/** Where shop-side notifications go. Falls back to the WordPress admin email. */
+/**
+ * The address portal orders go to when nothing has been configured.
+ *
+ * This used to fall through to the WordPress admin address, which is a
+ * mailbox nobody watches — so a submitted order could sit in the queue
+ * unseen. The shop default is a real person.
+ */
+function bta_notify_default_recipient() {
+    return apply_filters('bta_notify_default_recipient', 'dillon@boomerts.com');
+}
+
+/**
+ * Write the default into the setting once, so it is visible and editable on
+ * the admin screen rather than being invisible behaviour. Runs a single time;
+ * if the field is later cleared on purpose it stays cleared.
+ */
+add_action('plugins_loaded', 'bta_seed_notify_recipient', 20);
+function bta_seed_notify_recipient() {
+    if (get_option('bta_notify_seeded')) return;
+    if (trim((string) get_option('bta_notify_email', '')) === '') {
+        update_option('bta_notify_email', bta_notify_default_recipient());
+    }
+    update_option('bta_notify_seeded', 1);
+}
+
+/** Where shop-side notifications go. Falls back to the shop default above. */
 function bta_notify_recipients() {
     $raw = trim((string) get_option('bta_notify_email', ''));
-    if ($raw === '') $raw = (string) get_option('admin_email', '');
+    if ($raw === '') $raw = bta_notify_default_recipient();
 
     $out = array();
     foreach (preg_split('/[,;\s]+/', $raw) as $e) {
