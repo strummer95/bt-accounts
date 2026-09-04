@@ -15,8 +15,8 @@
 
 .btp-body {
   margin: 0;
-  padding: 0 0 40px;
-  background: #f4f5f7;
+  padding: 0 0 60px;
+  background: #fff;
   color: var(--btp-ink);
   font: 15px/1.5 Tahoma, "Segoe UI", Arial, sans-serif;
   -webkit-print-color-adjust: exact;
@@ -49,13 +49,16 @@
 
 /* ── Sheet ───────────────────────────────────────────────────────────────── */
 
+/* On screen this is a document, not a picture of a sheet of paper. The old
+   treatment — a white card at exactly 8.5in on a grey backdrop, with a border
+   and a drop shadow — read as one impossibly long page when an order ran to
+   thirteen items. The paper metaphor only makes sense once the page is
+   actually paginated, which is what the print rules below handle. */
 .btp-sheet {
-  max-width: 8.5in;
-  margin: 24px auto;
-  padding: 0.5in 0.55in 0.45in;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 34px 40px 0;
   background: #fff;
-  border: 1px solid #e3e5ea;
-  box-shadow: 0 2px 14px rgba(20,22,30,.08);
 }
 
 .btp-head {
