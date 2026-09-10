@@ -3,13 +3,13 @@
 Plugin Name: BT Accounts
 Plugin URI: https://boomerts.com
 Description: Contract account portal for Boomer T's. Each account gets its own branded login at /accounts, its own pricing profile, an order entry form, and live order status pulled from the shop's job cards.
-Version: 0.8.1
+Version: 0.9.0
 Author: Duck and Rabbit Co.
 */
 
 if (!defined('ABSPATH')) exit;
 
-define('BTA_VERSION', '0.8.1');
+define('BTA_VERSION', '0.9.0');
 define('BTA_DIR', plugin_dir_path(__FILE__));
 define('BTA_URL', plugin_dir_url(__FILE__));
 define('BTA_FILE', __FILE__);
@@ -24,6 +24,7 @@ require_once BTA_DIR . 'includes/accounts.php';
 require_once BTA_DIR . 'includes/auth.php';
 require_once BTA_DIR . 'includes/pricing.php';
 require_once BTA_DIR . 'includes/orders.php';
+require_once BTA_DIR . 'includes/staff-orders.php';
 require_once BTA_DIR . 'includes/portal-orders.php';
 require_once BTA_DIR . 'includes/portal-print.php';
 require_once BTA_DIR . 'includes/notify.php';

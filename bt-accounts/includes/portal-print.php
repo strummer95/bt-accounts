@@ -7,8 +7,9 @@
  * navigation, no tabs and nothing from another plugin's stylesheet.
  *
  * Two audiences share it: the account prints their own copy from the portal,
- * and the shop prints the same sheet as the pull ticket from wp-admin. A
- * wp-admin user with manage_options can open any order's sheet without a portal
+ * and the shop prints the same sheet as the pull ticket, from wp-admin or from
+ * Other > Accounts in the employee portal. Anyone holding bta_handle_orders
+ * (administrators always do) can open any order's sheet without a portal
  * session; a portal user gets exactly the ownership check the order page uses.
  */
 if (!defined('ABSPATH')) exit;
@@ -25,7 +26,7 @@ function bta_render_order_print($order_id) {
     $order = bta_get_order($order_id);
     if (!$order) { status_header(404); bta_print_denied(); return; }
 
-    $is_shop = current_user_can('manage_options');
+    $is_shop = current_user_can(BTA_STAFF_CAP);
 
     if (!$is_shop) {
         if (!bta_is_logged_in()) { status_header(403); bta_print_denied(); return; }

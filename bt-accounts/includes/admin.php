@@ -59,6 +59,12 @@ function bta_handle_admin_post() {
         bta_admin_notice('Branding saved.');
     }
 
+    if ($action === 'save_staff') {
+        $want = isset($_POST['staff']) ? array_map('intval', (array) $_POST['staff']) : array();
+        foreach (bta_staff_candidates() as $id => $u) bta_staff_set_access($id, in_array((int) $id, $want, true));
+        bta_admin_notice('Shop staff saved.');
+    }
+
     if ($action === 'save_notify') {
         update_option('bta_notify_email',    sanitize_text_field(wp_unslash(isset($_POST['notify_email']) ? $_POST['notify_email'] : '')));
         update_option('bta_notify_from',     sanitize_email(wp_unslash(isset($_POST['notify_from']) ? $_POST['notify_from'] : '')));
@@ -204,6 +210,8 @@ function bta_admin_accounts_list() {
         echo '</tr>';
     }
     echo '</tbody></table>';
+
+    bta_admin_staff_section();
 
     echo '<h2 style="margin-top:32px">Portal branding</h2>';
     echo '<form method="post" style="max-width:640px"><table class="form-table">';

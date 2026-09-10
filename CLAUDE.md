@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.7.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.9.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -49,12 +49,31 @@ the order model · `includes/admin.php` and `admin-orders.php` shop-side managem
 `includes/portal.php` the customer-facing portal shell · `portal-orders.php` order entry
 and list · `portal-quote.php` the account quoter · `portal-print.php` printable work order ·
 `includes/notify.php` order notification emails · `includes/pricing.php` ·
+`includes/staff-orders.php` shop staff order handling (see below) ·
 `includes/admin-diagnostics.php` · `assets/` order-form.js, quote.js, portal.css, print.css
 
 This plugin has its **own auth system**, separate from BT Portal's `bt_portal_user` roles.
 Portal roles are for shop staff; this is for outside contract customers. Don't merge them.
 
 Print is the default decoration in the account quoter.
+
+## Shop staff access (0.9.0)
+
+Staff work account orders from BT Portal, not wp-admin. `includes/staff-orders.php` renders
+the queue as `[bta_staff_orders]`, and BT Portal (0.51.0+) hosts it at **Other > Accounts**,
+`/employees/accounts`. REST lives under `bt-accounts/v1/staff/*` with cookie auth + `wp_rest`
+nonce.
+
+- Capability `bta_handle_orders` (`BTA_STAFF_CAP`). Administrators get it through a
+  `user_has_cap` filter, never stored. Everyone else gets it **on their own user record**
+  from **BT Accounts > Shop staff**, never on a role, so one employee having it does not
+  mean every Portal User does. Candidates listed there are the two BT Portal roles plus
+  anyone already holding the cap.
+- The print sheet is gated on the same cap. The wp-admin Orders screen is still
+  `manage_options`.
+- History entries are signed with `btp_actor_name()`, matching the board.
+- Job cards are found by search over `wp_bt_jobs` (order #, customer, card id) because
+  card ids are not visible anywhere on the board.
 
 ## Sign-in diagnostics
 
