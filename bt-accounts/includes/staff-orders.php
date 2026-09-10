@@ -247,6 +247,9 @@ function bta_staff_routes() {
     register_rest_route($ns, '/staff/orders/(?P<id>\d+)', array(
         'methods' => 'GET', 'callback' => 'bta_staff_rest_order', 'permission_callback' => $perm,
     ));
+    register_rest_route($ns, '/staff/orders/number/(?P<number>[A-Za-z0-9-]+)', array(
+        'methods' => 'GET', 'callback' => 'bta_staff_rest_order_by_number', 'permission_callback' => $perm,
+    ));
     register_rest_route($ns, '/staff/orders/(?P<id>\d+)/status', array(
         'methods' => 'POST', 'callback' => 'bta_staff_rest_status', 'permission_callback' => $perm,
     ));
@@ -282,6 +285,18 @@ function bta_staff_rest_order($request) {
     if (is_wp_error($o)) return $o;
     bta_sync_status_from_job($o);
     return rest_ensure_response(array('order' => bta_staff_order_detail($o), 'statuses' => bta_staff_statuses()));
+}
+
+/** For links like /employees/accounts/cin-1001: the address carries the order number, not the id. */
+function bta_staff_rest_order_by_number($request) {
+    global $wpdb;
+    $number = strtoupper(preg_replace('/[^A-Za-z0-9-]/', '', (string) $request['number']));
+    $id = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM " . bta_table('orders') . " WHERE UPPER(order_number) = %s LIMIT 1", $number
+    ));
+    if (!$id) return new WP_Error('bta_no_order', 'There is no order ' . $number . '.', array('status' => 404));
+    $request['id'] = $id;
+    return bta_staff_rest_order($request);
 }
 
 function bta_staff_rest_status($request) {
@@ -483,6 +498,14 @@ function bta_staff_orders_shortcode() {
     return '<span class="bta-s-status ' + pillClass(status) + '">' + esc(label || status) + '</span>';
   }
 
+  /* ── Address bar ──
+     BT Portal 0.53.0+ gives each order its own address, /employees/accounts/cin-1001,
+     so refresh, Back and a pasted link all land on the order. The address is
+     the source of truth: whatever it names is what this screen shows. Older
+     BT Portal has none of this, and the screen simply works as before. */
+  function urlItem() { return typeof window.btpCurrentItem === 'function' ? window.btpCurrentItem() : ''; }
+  function setUrl(number) { if (typeof window.btpSetItem === 'function') window.btpSetItem('accounts', number ? String(number).toLowerCase() : ''); }
+
   /* ── List ── */
 
   function matches(o) {
@@ -536,10 +559,11 @@ function bta_staff_orders_shortcode() {
     });
   }
 
-  function showList() {
+  function showList(push) {
     S.current = null;
     $('bta-s-detail').style.display = 'none';
     $('bta-s-list').style.display = '';
+    if (push !== false) setUrl('');
     loadList();
   }
 
@@ -630,13 +654,17 @@ function bta_staff_orders_shortcode() {
       + '<div class="bta-s-side">' + status + job + hist + '</div></div>';
   }
 
-  function openOrder(id) {
+  /* By id from the list, or by number from the address (byNumber). push=false
+     when the address already says this order, so nothing is written twice. */
+  function openOrder(id, push, byNumber) {
     $('bta-s-list').style.display = 'none';
     $('bta-s-detail').style.display = '';
     $('bta-s-detail').innerHTML = '<div class="bta-s-empty">Loading&hellip;</div>';
-    return api('/orders/' + id).then(function (d) {
+    var path = byNumber ? '/orders/number/' + encodeURIComponent(byNumber) : '/orders/' + id;
+    return api(path).then(function (d) {
       if (d.statuses) S.statuses = d.statuses;
       renderDetail(d.order);
+      if (push !== false) setUrl(d.order.number);
       if (d.order.board && !d.order.job_id) suggestJobs(d.order);
     }).catch(function (e) {
       $('bta-s-detail').innerHTML = '<div class="bta-s-head"><button type="button" class="bta-s-back" data-act="back">&larr; All orders</button></div>'
@@ -775,11 +803,18 @@ function bta_staff_orders_shortcode() {
     }
   });
 
-  /* BT Portal calls this each time the tab is opened. Reopening it refreshes
-     whatever was on screen rather than dropping back to the list. */
+  /* BT Portal calls this whenever the Accounts tab is shown: on load, on
+     refresh, on Back/Forward, and when the tab is picked from Other. It shows
+     whatever the address names, the order in it or else the list. Picking the
+     tab from the menu writes the plain tab address, so that goes to the list. */
   window.btaStaffLoad = function () {
-    if (S.current) return openOrder(S.current.id);
-    return loadList();
+    var item = urlItem();
+    if (item) {
+      if (S.current && String(S.current.number).toLowerCase() === item) return openOrder(S.current.id, false);
+      return openOrder(0, false, item);
+    }
+    if (typeof window.btpCurrentItem === 'function' || !S.current) { showList(false); return; }
+    return openOrder(S.current.id, false);   // older BT Portal: no addresses, keep the old behaviour
   };
 })();
 </script>

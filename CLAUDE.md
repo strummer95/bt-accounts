@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.10.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.11.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -77,6 +77,9 @@ nonce.
 - **Create job card** (0.10.0) calls BT Portal's `window.btpNewJob(prefill, onCreated)`
   (0.52.0+), which opens the board's own New Job window prefilled and hands back the
   saved row; the screen then links it. The button hides when that hook is absent.
+- Order addresses (0.11.0): `/employees/accounts/cin-1001` via BT Portal's `btpSetItem` /
+  `btpCurrentItem` (0.53.0+). The address is the source of truth in `btaStaffLoad()`.
+  `GET /staff/orders/number/{number}` resolves it, case-insensitive.
 
 ## Sign-in diagnostics
 
