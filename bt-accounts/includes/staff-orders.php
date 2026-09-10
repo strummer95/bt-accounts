@@ -186,6 +186,7 @@ function bta_staff_order_detail($o) {
             'sizes'      => implode(', ', $parts),
             'qty'        => (int) $it->qty,
             'decoration' => isset($decs[$it->decoration]) ? $decs[$it->decoration] : (string) $it->decoration,
+            'deco_key'   => (string) $it->decoration,
             'placement'  => (string) $it->placement,
             'art'        => isset($artby[(int) $it->art_id]) ? (string) $artby[(int) $it->art_id]->label : '',
             'notes'      => (string) $it->notes,
@@ -216,6 +217,7 @@ function bta_staff_order_detail($o) {
         'supplier_po'  => (string) $o->supplier_po,
         'arrival'      => bta_staff_date($o->expected_arrival, 'M j, Y'),
         'in_hands'     => bta_staff_date($o->in_hands_date, 'M j, Y'),
+        'in_hands_ymd' => bta_staff_date($o->in_hands_date, 'Y-m-d'),
         'ship_to'      => trim($o->ship_name . ' ' . $addr),
         'ship_method'  => (string) $o->ship_method,
         'notes'        => (string) $o->notes,
@@ -595,15 +597,22 @@ function bta_staff_orders_shortcode() {
         + '<div style="margin-top:8px"><button type="button" class="bta-s-btn ghost sm" data-act="unlink">Unlink</button></div></div>'
       : '';
 
-    var job = '<div class="bta-s-card"><h3 class="bta-s-h3">Job card</h3>'
-      + (o.board
-          ? (o.job_id ? '' : '<p class="bta-s-hint">Raise the card on the Schedule board, then find it here and link it. The status follows the card from then on.</p>')
-            + linked
-            + '<div class="bta-s-row"><input class="bta-s-field" id="bta-s-jobq" placeholder="Order #, customer or card #">'
-            + '<button type="button" class="bta-s-btn ghost sm" data-act="jobsearch">Find</button></div>'
-            + '<div id="bta-s-jobs" style="margin-top:8px"></div>'
-          : '<p class="bta-s-hint">The Schedule board isn&rsquo;t installed, so there are no job cards to link.</p>')
-      + '</div>';
+    var canCreate = typeof window.btpNewJob === 'function';
+    var job = '<div class="bta-s-card"><h3 class="bta-s-h3">Job card</h3>';
+    if (!o.board) {
+      job += '<p class="bta-s-hint">The Schedule board isn&rsquo;t installed, so there are no job cards to link.</p>';
+    } else if (o.job_id) {
+      job += linked;
+    } else {
+      job += '<p class="bta-s-hint">Every account order gets a card on the Schedule board. Once this order has one, its status follows the card, so moving the card moves the order for the account too.</p>'
+        + (canCreate ? '<button type="button" class="bta-s-btn pink" data-act="newjob" style="width:100%;margin-bottom:12px">Create job card</button>' : '')
+        + '<div id="bta-s-jobs"></div>'
+        + '<p class="bta-s-hint" style="margin:10px 0 6px">' + (canCreate ? 'Already made the card? Find it and link it:' : 'Raise the card on the board, then find it here and link it:') + '</p>'
+        + '<div class="bta-s-row"><input class="bta-s-field" id="bta-s-jobq" placeholder="Order #, customer or card #">'
+        + '<button type="button" class="bta-s-btn ghost sm" data-act="jobsearch">Find</button></div>'
+        + '<div id="bta-s-jobresults" style="margin-top:8px"></div>';
+    }
+    job += '</div>';
 
     var hist = o.log.length
       ? '<div class="bta-s-card"><h3 class="bta-s-h3">History</h3><ul class="bta-s-log">' + o.log.map(function (l) {
@@ -637,55 +646,87 @@ function bta_staff_orders_shortcode() {
 
   /* ── Job cards ── */
 
-  function renderJobs(jobs, searched) {
-    var box = $('bta-s-jobs');
-    if (!box) return;
-    if (!jobs.length) {
-      box.innerHTML = '<p class="bta-s-hint" style="margin:0">No card matches &ldquo;' + esc(searched) + '&rdquo; yet.</p>';
-      return;
-    }
-    box.innerHTML = jobs.map(function (j) {
-      var mine = S.current && S.current.job_id === j.id;
-      return '<div class="bta-s-job"><div><strong>#' + j.id + '</strong> &middot; ' + esc(j.order_num || 'no order #') + ' &middot; ' + esc(j.customer)
-        + '<small>' + esc(j.status) + (j.due ? ' &middot; due ' + esc(j.due) : '') + (j.qty ? ' &middot; ' + j.qty + ' pcs' : '') + (j.dept ? ' &middot; ' + esc(j.dept) : '') + '</small></div>'
-        + (mine ? '<span class="bta-s-dim" style="font-size:13px">Linked</span>'
-                : '<button type="button" class="bta-s-btn sm" data-link="' + j.id + '">Link</button>')
-        + '</div>';
-    }).join('');
+  function jobRow(j) {
+    var mine = S.current && S.current.job_id === j.id;
+    return '<div class="bta-s-job"><div><strong>#' + j.id + '</strong> &middot; ' + esc(j.order_num || 'no order #') + ' &middot; ' + esc(j.customer)
+      + '<small>' + esc(j.status) + (j.due ? ' &middot; due ' + esc(j.due) : '') + (j.qty ? ' &middot; ' + j.qty + ' pcs' : '') + (j.dept ? ' &middot; ' + esc(j.dept) : '') + '</small></div>'
+      + (mine ? '<span class="bta-s-dim" style="font-size:13px">Linked</span>'
+              : '<button type="button" class="bta-s-btn sm" data-link="' + j.id + '">Link</button>')
+      + '</div>';
   }
 
+  /* What the person typed into Find. An empty result says so, since they asked. */
   function searchJobs(q) {
-    var box = $('bta-s-jobs');
-    if (!q) { if (box) box.innerHTML = ''; return Promise.resolve([]); }
-    if (box) box.innerHTML = '<p class="bta-s-hint" style="margin:0">Searching&hellip;</p>';
-    return api('/jobs', 'GET', null, 'q=' + encodeURIComponent(q)).then(function (d) {
-      renderJobs(d.jobs || [], q);
-      return d.jobs || [];
+    var box = $('bta-s-jobresults');
+    if (!box) return;
+    if (!q) { box.innerHTML = ''; return; }
+    box.innerHTML = '<p class="bta-s-hint" style="margin:0">Searching&hellip;</p>';
+    api('/jobs', 'GET', null, 'q=' + encodeURIComponent(q)).then(function (d) {
+      var jobs = d.jobs || [];
+      box.innerHTML = jobs.length ? jobs.map(jobRow).join('')
+        : '<p class="bta-s-hint" style="margin:0">No card matches &ldquo;' + esc(q) + '&rdquo;.</p>';
     }).catch(function (e) {
-      if (box) box.innerHTML = '<p class="bta-s-hint bta-s-warn" style="margin:0">' + esc(e.message) + '</p>';
-      return [];
+      box.innerHTML = '<p class="bta-s-hint bta-s-warn" style="margin:0">' + esc(e.message) + '</p>';
     });
   }
 
-  /* Most cards carry the order number; failing that, the end customer. */
+  /* On open, quietly check whether someone already made a card for this order:
+     its order number first, then the end customer. Found ones are offered
+     above the search box; finding nothing shows nothing, because nobody asked. */
   function suggestJobs(o) {
-    var input = $('bta-s-jobq');
-    if (!input) return;
-    input.value = o.number;
-    searchJobs(o.number).then(function (found) {
-      if (!found.length && o.end_customer && S.current && S.current.id === o.id) {
-        input.value = o.end_customer;
-        searchJobs(o.end_customer);
-      }
+    function show(jobs) {
+      var box = $('bta-s-jobs');
+      if (!box || !jobs.length || !S.current || S.current.id !== o.id) return;
+      box.innerHTML = '<p class="bta-s-hint" style="margin:0 0 4px"><strong>Might already be on the board:</strong></p>' + jobs.map(jobRow).join('');
+    }
+    function find(q) {
+      return api('/jobs', 'GET', null, 'q=' + encodeURIComponent(q)).then(function (d) { return d.jobs || []; }).catch(function () { return []; });
+    }
+    find(o.number).then(function (jobs) {
+      if (jobs.length || !o.end_customer) return jobs;
+      return find(o.end_customer);
+    }).then(show);
+  }
+
+  /* Opens BT Portal's normal New Job window, filled in from the order. Every
+     field stays editable and the window's own checks still apply (it needs a
+     department and a status). Saving puts the card on the board as usual and
+     hands it back here to be linked. */
+  function newJob() {
+    var o = S.current;
+    if (!o || typeof window.btpNewJob !== 'function') return;
+
+    var lines = o.items.map(function (it) {
+      return it.qty + ' × ' + it.style_no + (it.color ? ' ' + it.color : '')
+        + ' · ' + it.decoration + (it.placement ? ', ' + it.placement : '');
+    });
+    var notes = (o.account ? o.account + ' ' : '') + 'order ' + o.number + (o.po ? ', PO ' + o.po : '') + '\n'
+      + lines.join('\n') + (o.notes ? '\n' + o.notes : '');
+
+    var decos = {};
+    o.items.forEach(function (it) { decos[it.deco_key] = true; });
+    var keys = Object.keys(decos);
+
+    var orderId = o.id;
+    window.btpNewJob({
+      orderNum:  o.number,
+      customer:  [o.account, o.end_customer].filter(Boolean).join(' - '),
+      dueDate:   o.in_hands_ymd || '',
+      notes:     notes,
+      lineItems: [{ qty: String(o.qty || ''), location: '', garment: '' }],
+      dept:      (keys.length === 1 && keys[0] === 'embroidery') ? 'Embroidery' : ''
+    }, function (created) {
+      linkJob(parseInt(created.id, 10), orderId, 'Job card #' + created.id + ' created and linked. The status follows that card from now on.');
     });
   }
 
-  function linkJob(jobId) {
-    var o = S.current;
-    if (!o) return;
-    api('/orders/' + o.id + '/job', 'POST', { job_id: jobId }).then(function (d) {
+  function linkJob(jobId, orderId, okText) {
+    var id = orderId || (S.current && S.current.id);
+    if (!id) return;
+    api('/orders/' + id + '/job', 'POST', { job_id: jobId }).then(function (d) {
+      if (S.current && S.current.id !== d.order.id) return;   // moved on to another order meanwhile
       renderDetail(d.order);
-      msg('bta-s-detailmsg', jobId ? 'Linked to job card #' + jobId + '. The status follows that card from now on.' : 'Job card unlinked.');
+      msg('bta-s-detailmsg', okText || (jobId ? 'Linked to job card #' + jobId + '. The status follows that card from now on.' : 'Job card unlinked.'));
       if (!jobId && d.order.board) suggestJobs(d.order);
     }).catch(function (e) { msg('bta-s-detailmsg', e.message, 'bad'); });
   }
@@ -724,6 +765,7 @@ function bta_staff_orders_shortcode() {
     if (act === 'status') setStatus(a);
     if (act === 'unlink' && confirm('Unlink this job card? The order keeps its current status.')) linkJob(0);
     if (act === 'jobsearch') searchJobs($('bta-s-jobq').value.trim());
+    if (act === 'newjob') newJob();
   });
 
   root.addEventListener('keydown', function (e) {

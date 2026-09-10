@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.9.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.10.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -74,6 +74,9 @@ nonce.
 - History entries are signed with `btp_actor_name()`, matching the board.
 - Job cards are found by search over `wp_bt_jobs` (order #, customer, card id) because
   card ids are not visible anywhere on the board.
+- **Create job card** (0.10.0) calls BT Portal's `window.btpNewJob(prefill, onCreated)`
+  (0.52.0+), which opens the board's own New Job window prefilled and hands back the
+  saved row; the screen then links it. The button hides when that hook is absent.
 
 ## Sign-in diagnostics
 
