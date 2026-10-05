@@ -201,7 +201,9 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   `bta_stripe_secret`. On return the session is fetched from Stripe and recorded once (unique
   `stripe_session`). No webhook yet, so a payer who closes the tab before the return page loads
   isn't marked paid. Stripe shows it and the shop records it by hand.
-- Not built yet: pulling store orders in automatically (Dillon: separate conversation), mockups.
+- Not built yet: pulling store orders in automatically (Dillon: separate conversation), back-of-shirt
+  photos for back-print mockups, version 2 and 3 Bottle Cap files. Art still ships in `assets/art/`
+  (~20 MB zip); strip it once Dillon confirms the designs show in the live Artwork tab.
 
 ## Sign-in diagnostics
 
