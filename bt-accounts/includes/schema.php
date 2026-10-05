@@ -10,10 +10,11 @@
  *     library, bulk / on-demand orders with prices, and payments.
  * v5: colour versions on library art; Leonid's Bottle Cap design.
  * v6: print-location boxes per product, for mockups.
+ * v7: Leonid's Deep in the Heart of Texas and Make Me Smile Tour 2026 designs.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 6);
+define('BTA_SCHEMA_VERSION', 7);
 
 function bta_table($name) {
     global $wpdb;
@@ -273,6 +274,58 @@ function bta_install_schema() {
 
     bta_seed_leonid();
     bta_seed_bottle_cap();
+    bta_seed_leonid_designs();
+}
+
+/**
+ * Copy one design file shipped in assets/art/ into the uploads art folder
+ * (once) and return its URL there, or the plugin URL if the copy fails.
+ */
+function bta_seed_art_file($src_name, $dest_name) {
+    $src = BTA_DIR . 'assets/art/' . $src_name;
+    $url = BTA_URL . 'assets/art/' . $src_name;
+    $up  = wp_upload_dir();
+    if (!empty($up['error']) || !file_exists($src)) return $url;
+    $dir = $up['basedir'] . '/bt-accounts-art';
+    if (!is_dir($dir)) wp_mkdir_p($dir);
+    if (file_exists($dir . '/' . $dest_name) || @copy($src, $dir . '/' . $dest_name)) {
+        return $up['baseurl'] . '/bt-accounts-art/' . $dest_name;
+    }
+    return $url;
+}
+
+/** Leonid's full-front shirt designs (Oct 5 2026). One run; deleting one later sticks. */
+function bta_seed_leonid_designs() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_designs_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib = bta_table('art_library');
+
+    $designs = array(
+        array('Deep in the Heart of Texas', 'deep-in-the-heart-of-texas.png', 'leonid-deep-in-the-heart-of-texas.png', 'Texas flag state with the band logo, rider and cactus.'),
+        array('Make Me Smile Tour 2026',    'make-me-smile-tour-2026.png',    'leonid-make-me-smile-tour-2026.png',    'Tour van, wave, palm and flowers.'),
+    );
+    foreach ($designs as $d) {
+        if ($wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, $d[0]))) continue;
+        $url = bta_seed_art_file($d[1], $d[2]);
+        $wpdb->insert($lib, array(
+            'account_id'  => $acct_id,
+            'name'        => $d[0],
+            'file_url'    => $url,
+            'file_name'   => $d[2],
+            'preview_url' => $url,
+            'placement'   => 'Full Front',
+            'colors'      => '',
+            'notes'       => $d[3],
+            'variants'    => '',
+            'added_by'    => 'shop',
+            'status'      => 'active',
+            'created_at'  => current_time('mysql'),
+        ));
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+    update_option('bta_seed_leonid_designs_done', 1);
 }
 
 /**

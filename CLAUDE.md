@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.15.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.15.1**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -171,6 +171,10 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   `products.zones` stores the shop's full set from the drag editor on the product form (a saved
   set replaces the defaults). Left chest = wearer's left = right side of the photo.
   "Put art X at location Y" = set the art's placement to Y; the mockup uses the product's Y box.
+- More Leonid designs (0.15.1, schema 7, `bta_seed_leonid_designs()`): Deep in the Heart of Texas
+  and Make Me Smile Tour 2026, Full Front, PNGs (from Dillon's webps) in `assets/art/`. Design
+  choices are filtered by `bta_art_fits()`: a cap only gets art with a hat placement, a shirt only
+  art with a non-hat one.
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

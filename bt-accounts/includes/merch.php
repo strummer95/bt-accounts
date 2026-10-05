@@ -446,6 +446,18 @@ function bta_art_version($a, $color) {
     return array('label' => '', 'file_url' => (string) $a->file_url, 'file_name' => (string) $a->file_name, 'preview' => bta_art_preview($a), 'note' => '');
 }
 
+/**
+ * Whether a design can go on this item at all, by its placements: a cap needs
+ * a hat placement, a shirt needs one that isn't. No placement set = anywhere.
+ */
+function bta_art_fits($p, $a) {
+    $places = array_filter(array_map('trim', explode(',', (string) $a->placement)), 'strlen');
+    if (!$places) return true;
+    $hat = bta_product_is_hat($p);
+    foreach ($places as $pl) if ((stripos($pl, 'hat') !== false) === $hat) return true;
+    return false;
+}
+
 /** Whether a product goes on the head rather than the body. */
 function bta_product_is_hat($p) {
     return (bool) preg_match('/\b(hat|cap|beanie|visor)\b/i', $p->name . ' ' . $p->placement);
@@ -473,6 +485,7 @@ function bta_product_art_choices($p, $library) {
     foreach ($library as $id => $a) {
         if ($a->status !== 'active') continue;
         if ($ids && !in_array((int) $id, $ids, true)) continue;
+        if (!bta_art_fits($p, $a)) continue;
         $out[(int) $id] = $a;
     }
     return $out;
