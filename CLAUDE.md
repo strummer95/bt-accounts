@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.13.3**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.13.4**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -149,7 +149,9 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   tile → pick design (skipped with 0–1 designs) → size grid, one row per colour. Fields
   `line[i][product]`, `line[i][art]`, `line[i][qty][colour][size]`; each colour with a qty becomes
   its own order line. Same builder for bulk and on demand. Pictures: `bta_product_image()` = the
-  product's image URL, else a BT Catalog photo for the same `style_no` (guessed column names).
+  product's image URL, else BT Catalog's photo of the **black** colourway (Dillon's call) for the
+  same `style_no`, read from the catalog row's `colors` JSON (`[name, hex, img, swatch…]` per colour,
+  0.13.4). Each colour row in the size grid shows that colour's catalog photo.
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

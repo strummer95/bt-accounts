@@ -255,6 +255,7 @@ function bta_merch_form_products($account, $type) {
             'brand'  => trim($p->brand . ' ' . $p->style_no),
             'colors' => bta_product_colors($p),
             'img'    => bta_product_image($p),
+            'colorImgs' => (object) array_filter(array_combine(bta_product_colors($p) ?: array(), array_map(function ($c) use ($p) { return bta_product_color_image($p, $c); }, bta_product_colors($p)))),
             'sizes'  => bta_product_sizes($p),
             'prices' => $prices,
             'art'    => $arts,

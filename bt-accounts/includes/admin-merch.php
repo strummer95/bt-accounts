@@ -72,12 +72,14 @@ function bta_admin_merch_sections($a) {
 
     echo '<h2 style="margin-top:32px" id="bta-products">Products</h2>';
     echo '<p class="description" style="max-width:760px">What they can order. Bulk price is per piece on stock they order; on-demand price is per piece on a single customer&rsquo;s order. Leave a price blank and that item shows &ldquo;Ask&rdquo; and comes through for you to price. 2XL and up adds the upcharge.</p>';
-    echo '<table class="widefat striped" style="max-width:1100px;font-size:14px"><thead><tr><th>Product</th><th>Colours</th><th>Sizes</th><th>Orders</th><th>Bulk</th><th>On demand</th><th>2XL+</th><th>Art</th><th></th></tr></thead><tbody>';
-    if (!$products) echo '<tr><td colspan="9">No products yet.</td></tr>';
+    echo '<table class="widefat striped" style="max-width:1100px;font-size:14px"><thead><tr><th style="width:60px"></th><th>Product</th><th>Colours</th><th>Sizes</th><th>Orders</th><th>Bulk</th><th>On demand</th><th>2XL+</th><th>Art</th><th></th></tr></thead><tbody>';
+    if (!$products) echo '<tr><td colspan="10">No products yet.</td></tr>';
     foreach ($products as $p) {
         $arts = array();
         foreach (bta_product_art_ids($p) as $id) if (isset($library[$id])) $arts[] = $library[$id]->name;
         echo '<tr' . ($p->status !== 'active' ? ' style="opacity:.55"' : '') . '>';
+        $img = bta_product_image($p);
+        echo '<td>' . ($img ? '<img src="' . esc_url($img) . '" alt="" style="width:52px;height:52px;object-fit:contain">' : '<span style="color:#b26d00;font-size:12px">no picture</span>') . '</td>';
         echo '<td><strong>' . esc_html($p->name) . '</strong><br><span style="color:#666">' . esc_html(trim($p->brand . ' ' . $p->style_no)) . ($p->status !== 'active' ? ' &middot; hidden' : '') . '</span></td>';
         echo '<td>' . esc_html(str_replace(',', ', ', $p->colors)) . '</td>';
         echo '<td>' . esc_html(str_replace(',', ' ', $p->sizes)) . '</td>';
@@ -121,7 +123,7 @@ function bta_admin_merch_sections($a) {
     }
     if ($library) echo '<p class="description">Tick the designs this product comes in. None ticked means they can pick any design in the library.</p>';
     echo '</td></tr>';
-    echo '<tr><th>Mockup image URL</th><td><input name="image_url" class="large-text" value="' . esc_attr($f('image_url')) . '" placeholder="https://boomerts.com/wp-content/uploads/..."></td></tr>';
+    echo '<tr><th>Mockup image URL</th><td><input name="image_url" class="large-text" value="' . esc_attr($f('image_url')) . '" placeholder="https://boomerts.com/wp-content/uploads/..."><p class="description">Leave blank to use the catalogue photo of the black colourway for this style number.</p></td></tr>';
     echo '<tr><th>Store item ref</th><td><input name="store_ref" class="regular-text" value="' . esc_attr($f('store_ref')) . '"><p class="description">The item&rsquo;s id or link on their web store, for matching orders up later.</p></td></tr>';
     echo '<tr><th>Order / status</th><td><input name="sort_order" type="number" style="width:70px" value="' . esc_attr($f('sort_order', '0')) . '"> <select name="status"><option value="active">Showing</option><option value="hidden"' . selected($f('status'), 'hidden', false) . '>Hidden</option></select></td></tr>';
     echo '</table><p><button class="button button-primary">' . ($edit_p ? 'Save product' : 'Add product') . '</button></p></form>';

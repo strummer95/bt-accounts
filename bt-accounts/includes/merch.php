@@ -79,27 +79,58 @@ function bta_product_in($p, $type) {
 }
 
 /**
- * The product's picture: its own image URL, or failing that BT Catalog's photo
- * for the same style number. BT Catalog's columns are not known here, so the
- * usual image column names are tried and anything else is ignored.
+ * BT Catalog's photo of one colourway of a style, keyed by colour name
+ * (lowercased). Its colors JSON holds [name, hex, img, swatch, …] per colour.
+ * A style can sit under more than one supplier, so every row is read and the
+ * first photo found for a colour wins.
  */
-function bta_product_image($p) {
-    if (!empty($p->image_url)) return (string) $p->image_url;
+function bta_catalog_color_images($style_no) {
     static $cache = array();
-    $style = trim((string) $p->style_no);
-    if ($style === '' || !function_exists('bt_cat_table')) return '';
-    if (array_key_exists($style, $cache)) return $cache[$style];
+    $style_no = trim((string) $style_no);
+    if ($style_no === '' || !function_exists('bt_cat_table')) return array();
+    if (isset($cache[$style_no])) return $cache[$style_no];
 
     global $wpdb;
     $t = bt_cat_table();
-    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE style_no = %s LIMIT 1", $style), ARRAY_A);
-    $url = '';
-    if ($row) {
-        foreach (array('image_url', 'image', 'img', 'thumbnail', 'thumb', 'photo', 'front_image') as $k) {
-            if (!empty($row[$k]) && preg_match('#^https?://#i', (string) $row[$k])) { $url = (string) $row[$k]; break; }
+    $out = array();
+    if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $t)) === $t) {
+        $rows = $wpdb->get_col($wpdb->prepare("SELECT colors FROM $t WHERE style_no = %s ORDER BY active DESC, id ASC", $style_no));
+        foreach ((array) $rows as $json) {
+            $cols = json_decode((string) $json, true);
+            if (!is_array($cols)) continue;
+            foreach ($cols as $k => $c) {
+                if (!is_array($c) || empty($c['img'])) continue;
+                $name = strtolower(trim(isset($c['name']) ? (string) $c['name'] : (string) $k));
+                if ($name !== '' && !isset($out[$name])) $out[$name] = (string) $c['img'];
+            }
         }
     }
-    return $cache[$style] = $url;
+    return $cache[$style_no] = $out;
+}
+
+/** Catalogue photo for one colour of a product, or ''. */
+function bta_product_color_image($p, $color) {
+    $imgs = bta_catalog_color_images($p->style_no);
+    $c = strtolower(trim((string) $color));
+    if ($c === '' || !$imgs) return '';
+    if (isset($imgs[$c])) return $imgs[$c];
+    foreach ($imgs as $name => $url) if (strpos($name, $c) === 0) return $url;   // "black" → "black heather" last resort
+    return '';
+}
+
+/**
+ * The product's picture: its own image URL, else the catalogue photo of the
+ * black colourway, else of its first colour that has one.
+ */
+function bta_product_image($p) {
+    if (!empty($p->image_url)) return (string) $p->image_url;
+    $try = array_merge(array('Black'), bta_product_colors($p));
+    foreach ($try as $c) {
+        $u = bta_product_color_image($p, $c);
+        if ($u !== '') return $u;
+    }
+    $imgs = bta_catalog_color_images($p->style_no);
+    return $imgs ? (string) reset($imgs) : '';
 }
 
 /** Art ids a product is printed with. Empty means any art in the library. */

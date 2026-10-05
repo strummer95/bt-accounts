@@ -113,7 +113,8 @@
       + p.sizes.map(function (s) { return '<th>' + esc(s) + '</th>'; }).join('') + '<th>Pcs</th></tr></thead><tbody>'
       + colors.map(function (c) {
         var row = qty[c] || {};
-        return '<tr data-color="' + esc(c) + '"><th scope="row">' + esc(c || 'Qty') + '</th>' + p.sizes.map(function (s) {
+        var ci = p.colorImgs && p.colorImgs[c] ? '<img class="bta-rowpic" src="' + esc(p.colorImgs[c]) + '" alt="">' : '';
+        return '<tr data-color="' + esc(c) + '"><th scope="row">' + ci + esc(c || 'Qty') + '</th>' + p.sizes.map(function (s) {
           return '<td><input type="number" min="0" inputmode="numeric" aria-label="' + esc(c + ' ' + s) + '"'
             + ' name="' + n + '[qty][' + esc(c) + '][' + esc(s) + ']" data-size="' + esc(s) + '" value="' + esc(row[s] || '') + '"></td>';
         }).join('') + '<td class="bta-rowpcs"></td></tr>';
