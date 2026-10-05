@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.9**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.13.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -28,7 +28,7 @@ Four places must match or WordPress loops forever trying to reinstall:
 4. The version inside the zip
 
 Steps: edit under `bt-accounts/`, bump both version spots, `node --check` touched JS
-(no PHP binary in the container, brace-audit by hand), build `bt-accounts-X.Y.Z.zip` plus
+and `php -l` touched PHP (the container has PHP 8.3 now), build `bt-accounts-X.Y.Z.zip` plus
 plain `bt-accounts.zip` at the repo root, update `manifest.json` with the version, the
 **versioned** raw `download_url` and a changelog entry, commit and push to `main`. Dillon
 then does **BT Accounts → Check for updates** (the panel at the bottom of the BT Accounts
@@ -126,6 +126,32 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.
 - Order form fields are `item[i][...]` with explicit indexes; the old `item_x[]` arrays shifted
   sizes onto the wrong line when one was removed.
+
+## Merch stores (0.13.0)
+
+Second account kind: `accounts.kind` = `contract` (default, they send blanks) or `merch` (a band or
+brand whose web store we print for). **Leonid & Friends** is the first: prefix `LAF`, login `kim`,
+seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt hash is in the repo).
+
+- `includes/merch.php` model · `portal-merch.php` portal tabs · `admin-merch.php` wp-admin ·
+  `assets/merch-form.js`. Tables v4: `bta_products`, `bta_art_library`, `bta_payments`.
+- Product = one style with a colour list, sizes, `channels` (both / bulk / ondemand), bulk and
+  on-demand price per piece, 2XL+ upcharge, and the library art it may carry (none = any).
+  Seeded line-up (Dillon's): Gildan 5000 / 5V00L / 5400 in Black, Sport Grey, White and Valucap
+  VC300A in Black, White, Khaki, Red on both; Port & Company LPC54V Black/White on-demand only.
+  Prices left blank on purpose (shop sets them; blank shows "Ask" and the line comes in unpriced).
+- **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
+  shipped to that customer; `external_ref` holds the store order # and blocks double entry.
+- Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a
+  line is copied into `order_art` so print sheet, emails, staff screen and Printavo read it
+  unchanged. Prices come from the product server-side, never from the form.
+- Money: `subtotal` (sum of `line_total`) + `shipping` + `adjustment` − `amount_paid`. The shop
+  edits line prices, shipping and adjustment and records payments on the wp-admin order page.
+- Card payments: Stripe Checkout through `wp_remote_request`, no SDK, secret key in
+  `bta_stripe_secret`. On return the session is fetched from Stripe and recorded once (unique
+  `stripe_session`). No webhook yet, so a payer who closes the tab before the return page loads
+  isn't marked paid. Stripe shows it and the shop records it by hand.
+- Not built yet: pulling store orders in automatically (Dillon: separate conversation), mockups.
 
 ## Sign-in diagnostics
 

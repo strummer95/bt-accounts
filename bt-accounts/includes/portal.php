@@ -93,8 +93,11 @@ function bta_route_portal() {
     $account = $user->account;
     $errors  = array();
 
-    // New-order submit runs before any output so a success can redirect.
-    if ($view === 'new' && !empty($_POST['bta_submit_order'])) {
+    // Merch-store accounts have their own screens; their POSTs run here too.
+    if (bta_is_merch($account)) {
+        list($errors, $notice) = bta_merch_handle_post($view, $user, $account);
+    } elseif ($view === 'new' && !empty($_POST['bta_submit_order'])) {
+        // New-order submit runs before any output so a success can redirect.
         $res = bta_handle_order_submit($user, $account);
         if (is_array($res)) {
             $errors = $res;
@@ -203,8 +206,9 @@ function bta_render_portal($view = '', $errors = array()) {
     $accent  = $account->brand_color ? $account->brand_color : '#27267e';
     $who     = $user->display_name ? $user->display_name : $user->username;
 
-    $titles = array('new' => 'New order', 'order' => 'Order', 'quote' => 'Quote');
-    $title  = isset($titles[$view]) ? $titles[$view] . ' · ' : '';
+    $merch  = bta_is_merch($account);
+    $titles = $merch ? bta_merch_tabs() + array('order' => 'Order') : array('new' => 'New order', 'order' => 'Order', 'quote' => 'Quote');
+    $title  = ($view !== '' && isset($titles[$view])) ? $titles[$view] . ' · ' : '';
 
     bta_head($title . $account->name . ' · Boomer T\'s', $accent);
     ?>
@@ -230,15 +234,22 @@ function bta_render_portal($view = '', $errors = array()) {
 
     <nav class="bta-tabs">
       <div class="bta-tabs-inner">
+        <?php if ($merch) : foreach (bta_merch_tabs() as $k => $label) :
+            $on = ($view === $k) || ($k === '' && $view === 'order'); ?>
+        <a class="bta-tab<?php echo $on ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url($k)); ?>"><?php echo esc_html($label); ?></a>
+        <?php endforeach; else : ?>
         <a class="bta-tab<?php echo ($view === '' || $view === 'order') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url()); ?>">Orders</a>
         <a class="bta-tab<?php echo ($view === 'new') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url('new')); ?>">New Order</a>
         <a class="bta-tab<?php echo ($view === 'quote') ? ' is-active' : ''; ?>" href="<?php echo esc_url(bta_portal_url('quote')); ?>">Quote</a>
+        <?php endif; ?>
       </div>
     </nav>
 
     <main class="bta-main">
       <?php
-      if ($view === 'new') {
+      if ($merch) {
+          bta_merch_render_view($view, $user, $account, $errors);
+      } elseif ($view === 'new') {
           bta_portal_new_order($user, $account, $errors, wp_unslash($_POST));
       } elseif ($view === 'order') {
           if (!empty($_GET['new'])) {
@@ -257,7 +268,11 @@ function bta_render_portal($view = '', $errors = array()) {
       Questions? <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>
     </footer>
     <?php
-    if ($view === 'new') {
+    if ($merch) {
+        if ($view === 'bulk' || $view === 'ondemand') {
+            echo '<script src="' . esc_url(BTA_URL . 'assets/merch-form.js?v=' . BTA_VERSION) . '"></script>';
+        }
+    } elseif ($view === 'new') {
         echo '<script src="' . esc_url(BTA_URL . 'assets/order-form.js?v=' . BTA_VERSION) . '"></script>';
     } elseif ($view === 'quote') {
         echo '<script src="' . esc_url(BTA_URL . 'assets/quote.js?v=' . BTA_VERSION) . '"></script>';

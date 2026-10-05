@@ -60,6 +60,10 @@ function bta_update_account($id, $args) {
     if (isset($args['can_buy_garments'])) $data['can_buy_garments'] = !empty($args['can_buy_garments']) ? 1 : 0;
     if (isset($args['requires_po']))      $data['requires_po']      = !empty($args['requires_po']) ? 1 : 0;
     if (isset($args['status']))           $data['status']           = in_array($args['status'], array('active','disabled'), true) ? $args['status'] : 'active';
+    if (isset($args['kind']))             $data['kind']             = array_key_exists($args['kind'], bta_account_kinds()) ? $args['kind'] : 'contract';
+    if (isset($args['order_prefix']) && $args['order_prefix'] !== '') {
+        $data['order_prefix'] = substr(strtoupper(preg_replace('/[^a-z0-9]/i', '', $args['order_prefix'])), 0, 12);
+    }
     if (isset($args['pricing_profile']))  $data['pricing_profile']  = wp_json_encode($args['pricing_profile']);
 
     if (!$data) return true;

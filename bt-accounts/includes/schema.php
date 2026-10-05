@@ -6,10 +6,12 @@
  * Order tables land in Phase 4 as v2 so the order shape can be settled first.
  * v3: print/embroidery locations and a price per item line, and the Printavo
  *     link on each order. dbDelta adds the new columns to existing tables.
+ * v4: merch-store accounts (Leonid & Friends first): a product list, an art
+ *     library, bulk / on-demand orders with prices, and payments.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 3);
+define('BTA_SCHEMA_VERSION', 4);
 
 function bta_table($name) {
     global $wpdb;
@@ -35,6 +37,7 @@ function bta_install_schema() {
         pricing_profile LONGTEXT NULL,
         can_buy_garments TINYINT(1) NOT NULL DEFAULT 0,
         requires_po TINYINT(1) NOT NULL DEFAULT 1,
+        kind VARCHAR(20) NOT NULL DEFAULT 'contract',
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
         PRIMARY KEY (id),
@@ -110,6 +113,15 @@ function bta_install_schema() {
         ship_zip VARCHAR(20) NOT NULL DEFAULT '',
         ship_method VARCHAR(60) NOT NULL DEFAULT '',
         notes MEDIUMTEXT NULL,
+        order_type VARCHAR(20) NOT NULL DEFAULT '',
+        external_ref VARCHAR(120) NOT NULL DEFAULT '',
+        event_name VARCHAR(190) NOT NULL DEFAULT '',
+        ship_email VARCHAR(190) NOT NULL DEFAULT '',
+        ship_phone VARCHAR(40) NOT NULL DEFAULT '',
+        subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+        shipping DECIMAL(10,2) NOT NULL DEFAULT 0,
+        adjustment DECIMAL(10,2) NOT NULL DEFAULT 0,
+        amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
         status VARCHAR(60) NOT NULL DEFAULT 'Submitted',
         job_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         printavo_state VARCHAR(20) NOT NULL DEFAULT '',
@@ -137,6 +149,7 @@ function bta_install_schema() {
         order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         sort_order INT NOT NULL DEFAULT 0,
         catalog_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        product_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         style_no VARCHAR(60) NOT NULL DEFAULT '',
         style_name VARCHAR(255) NOT NULL DEFAULT '',
         brand VARCHAR(120) NOT NULL DEFAULT '',
@@ -148,6 +161,7 @@ function bta_install_schema() {
         art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         locations MEDIUMTEXT NULL,
         unit_price DECIMAL(10,2) NULL,
+        line_total DECIMAL(10,2) NULL,
         price_note VARCHAR(255) NOT NULL DEFAULT '',
         notes TEXT NULL,
         PRIMARY KEY (id),
@@ -178,6 +192,73 @@ function bta_install_schema() {
         KEY order_id (order_id)
     ) $charset;");
 
+    /* ── v4: merch stores ─────────────────────────────────────────────────── */
+
+    $products = bta_table('products');
+    $library  = bta_table('art_library');
+    $payments = bta_table('payments');
+
+    dbDelta("CREATE TABLE $products (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        name VARCHAR(190) NOT NULL DEFAULT '',
+        store_ref VARCHAR(190) NOT NULL DEFAULT '',
+        style_no VARCHAR(60) NOT NULL DEFAULT '',
+        brand VARCHAR(120) NOT NULL DEFAULT '',
+        colors VARCHAR(255) NOT NULL DEFAULT '',
+        sizes VARCHAR(255) NOT NULL DEFAULT '',
+        channels VARCHAR(20) NOT NULL DEFAULT 'both',
+        image_url TEXT NULL,
+        decoration VARCHAR(40) NOT NULL DEFAULT 'print',
+        placement VARCHAR(120) NOT NULL DEFAULT '',
+        art_ids VARCHAR(255) NOT NULL DEFAULT '',
+        bulk_price DECIMAL(10,2) NULL,
+        ondemand_price DECIMAL(10,2) NULL,
+        upcharge DECIMAL(10,2) NOT NULL DEFAULT 0,
+        notes TEXT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY account_id (account_id),
+        KEY status (status)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $library (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        name VARCHAR(190) NOT NULL DEFAULT '',
+        file_url TEXT NULL,
+        file_name VARCHAR(255) NOT NULL DEFAULT '',
+        preview_url TEXT NULL,
+        placement VARCHAR(120) NOT NULL DEFAULT '',
+        colors VARCHAR(190) NOT NULL DEFAULT '',
+        notes TEXT NULL,
+        added_by VARCHAR(20) NOT NULL DEFAULT 'shop',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY account_id (account_id),
+        KEY status (status)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $payments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        method VARCHAR(60) NOT NULL DEFAULT '',
+        reference VARCHAR(190) NOT NULL DEFAULT '',
+        stripe_session VARCHAR(190) NULL,
+        note VARCHAR(255) NOT NULL DEFAULT '',
+        recorded_by VARCHAR(190) NOT NULL DEFAULT '',
+        paid_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        UNIQUE KEY stripe_session (stripe_session),
+        KEY order_id (order_id),
+        KEY account_id (account_id)
+    ) $charset;");
+
     // v2 also adds a per-account order-number prefix.
     $acc_cols = $wpdb->get_col("DESC $accounts", 0);
     if (is_array($acc_cols) && !in_array('order_prefix', $acc_cols, true)) {
@@ -185,6 +266,72 @@ function bta_install_schema() {
     }
 
     update_option('bta_schema_version', BTA_SCHEMA_VERSION);
+
+    bta_seed_leonid();
+}
+
+/**
+ * Leonid & Friends: the first merch-store account, with Kim's login.
+ * Runs once. If Dillon later deletes or renames either, it does not come back.
+ * Only a bcrypt hash of the starting password is kept here, never the password.
+ */
+function bta_seed_leonid() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_done')) return;
+
+    $accounts = bta_table('accounts');
+    $acct_id  = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM $accounts WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) {
+        $wpdb->insert($accounts, array(
+            'name'             => 'Leonid & Friends',
+            'slug'             => 'leonid-and-friends',
+            'order_prefix'     => 'LAF',
+            'logo_url'         => '',
+            'brand_color'      => '#27267e',
+            'pricing_profile'  => wp_json_encode(array()),
+            'can_buy_garments' => 1,
+            'requires_po'      => 0,
+            'kind'             => 'merch',
+            'status'           => 'active',
+            'created_at'       => current_time('mysql'),
+        ));
+        $acct_id = (int) $wpdb->insert_id;
+    }
+
+    $users = bta_table('users');
+    if ($acct_id && !$wpdb->get_var($wpdb->prepare("SELECT id FROM $users WHERE username = %s", 'kim'))) {
+        $wpdb->insert($users, array(
+            'account_id'       => $acct_id,
+            'username'         => 'kim',
+            'pass_hash'        => '$2y$10$9S8NBAuBaQ7UEFnlZc4wTeqEgGwqRyMzHFX26oecaJl8.Rc66Ne0a',
+            'display_name'     => 'Kim',
+            'email'            => '',
+            'is_account_admin' => 1,
+            'status'           => 'active',
+            'created_at'       => current_time('mysql'),
+        ));
+    }
+
+    // The store's line-up as Dillon gave it. Prices are left for the shop to set.
+    $products = bta_table('products');
+    if ($acct_id && !$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $products WHERE account_id = %d", $acct_id))) {
+        $seed = array(
+            array('Heavy Cotton Tee', 'Gildan',         '5000',   'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL,4XL,5XL', 'both',     'print',      'Full Front'),
+            array('Ladies Heavy Cotton V-Neck', 'Gildan',         '5V00L',  'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL',         'both',     'print',      'Full Front'),
+            array('Heavy Cotton Long Sleeve Tee', 'Gildan',         '5400',   'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL',         'both',     'print',      'Full Front'),
+            array('Chino Cap', 'Valucap',        'VC300A', 'Black,White,Khaki,Red',          'OSFA',                     'both',     'embroidery', 'Hat Front'),
+            array('Ladies Core Cotton V-Neck', 'Port & Company', 'LPC54V', 'Black,White',            'S,M,L,XL,2XL,3XL,4XL',     'ondemand', 'print',      'Full Front'),
+        );
+        foreach ($seed as $i => $r) {
+            $wpdb->insert($products, array(
+                'account_id' => $acct_id, 'name' => $r[0], 'brand' => $r[1], 'style_no' => $r[2],
+                'colors' => $r[3], 'sizes' => $r[4], 'channels' => $r[5], 'decoration' => $r[6],
+                'placement' => $r[7], 'sort_order' => $i, 'status' => 'active', 'created_at' => current_time('mysql'),
+            ));
+        }
+    }
+
+    if ($acct_id) update_option('bta_seed_leonid_done', 1);
 }
 
 /** Housekeeping: drop dead sessions and stale attempt rows. */
