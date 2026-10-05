@@ -670,7 +670,7 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 .bta-mcard-sel .bta-tile-sub { padding: 0; font-size: 14px; }
 
 .bta-mcard-sel { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
-.bta-mcard-pic { width: 84px; flex: 0 0 84px; border-radius: 6px; font-size: 12px; }
+.bta-mcard-pic { width: 150px; flex: 0 0 150px; border-radius: 6px; font-size: 12px; background: #fff; border: 1px solid var(--bta-line-soft); }
 .bta-mcard-design { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 15px; }
 .bta-mcard-design img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; border: 1px solid var(--bta-line-soft); }
 
@@ -688,7 +688,14 @@ a.bta-tab { text-decoration: none; display: inline-block; }
   border: 2px solid var(--bta-line); border-radius: 5px; background: #fff;
 }
 .bta-qtygrid input:focus { outline: none; border-color: var(--bta-navy); }
-.bta-rowpic { width: 34px; height: 34px; object-fit: contain; vertical-align: middle; margin-right: 8px; background: var(--bta-lav-soft); border-radius: 4px; }
+.bta-rowpic { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; vertical-align: middle; margin-right: 8px; background: #fff; border-radius: 4px; overflow: hidden; }
+
+/* Mockup: art over the garment photo, positioned in % of the photo */
+.bta-mock { position: relative; display: inline-block; max-width: 100%; max-height: 100%; line-height: 0; }
+.bta-mock > img:first-child { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
+.bta-tile-img .bta-mock, .bta-mcard-pic .bta-mock { height: 100%; }
+.bta-tile-img .bta-mock > img:first-child, .bta-mcard-pic .bta-mock > img:first-child { height: 100%; width: auto; object-fit: contain; }
+.bta-mock-art { position: absolute; object-fit: contain; pointer-events: none; }
 .bta-tile-img { background: #fff; }
 .bta-rowver {
   display: flex; align-items: center; gap: 5px; margin-top: 3px; font-family: Tahoma, sans-serif;

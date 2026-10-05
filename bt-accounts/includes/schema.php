@@ -9,10 +9,11 @@
  * v4: merch-store accounts (Leonid & Friends first): a product list, an art
  *     library, bulk / on-demand orders with prices, and payments.
  * v5: colour versions on library art; Leonid's Bottle Cap design.
+ * v6: print-location boxes per product, for mockups.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 5);
+define('BTA_SCHEMA_VERSION', 6);
 
 function bta_table($name) {
     global $wpdb;
@@ -213,6 +214,7 @@ function bta_install_schema() {
         decoration VARCHAR(40) NOT NULL DEFAULT 'print',
         placement VARCHAR(120) NOT NULL DEFAULT '',
         art_ids VARCHAR(255) NOT NULL DEFAULT '',
+        zones TEXT NULL,
         bulk_price DECIMAL(10,2) NULL,
         ondemand_price DECIMAL(10,2) NULL,
         upcharge DECIMAL(10,2) NOT NULL DEFAULT 0,

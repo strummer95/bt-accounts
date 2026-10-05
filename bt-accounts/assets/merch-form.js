@@ -32,6 +32,27 @@
     return src ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '<span>' + esc(label) + '</span>';
   }
 
+  /* A mockup: the garment photo with the art contain-fitted into its print
+     location's box (x / y / w / h as % of the photo, as in PresStora). The
+     wrapper takes the photo's own shape so the percentages line up. */
+  function mock(garment, art, zone, label) {
+    if (!garment) return pic('', label);
+    var a = art && zone ? '<img class="bta-mock-art" src="' + esc(art) + '" alt="" style="left:' + zone.x + '%;top:' + zone.y
+      + '%;width:' + zone.w + '%;height:' + zone.h + '%">' : '';
+    return '<span class="bta-mock"><img src="' + esc(garment) + '" alt="" loading="lazy">' + a + '</span>';
+  }
+  function zoneFor(p, design) {
+    return design && design.zone && p.zones ? p.zones[design.zone] : null;
+  }
+  /* The art for one garment colour: its version's preview, the design's own
+     picture when no version applies, nothing when the version has no file yet. */
+  function artFor(design, color) {
+    if (!design) return '';
+    var v = design.versions && design.versions[color];
+    if (v && v.label) return v.img || '';
+    return design.img || '';
+  }
+
   function priceText(p) {
     var vals = Object.keys(p.prices).map(function (k) { return p.prices[k]; }).filter(function (v) { return v !== null; });
     if (!vals.length) return 'Price set by the shop';
@@ -81,7 +102,7 @@
     card.innerHTML = head(card, esc(p.name) + ' &middot; choose the design', 'product')
       + '<div class="bta-tiles">' + p.art.map(function (a) {
         return '<button type="button" class="bta-tile" data-pick-art="' + a.id + '">'
-          + '<div class="bta-tile-img">' + pic(a.img, 'Design') + '</div>'
+          + '<div class="bta-tile-img">' + (p.img ? mock(p.img, artFor(a, 'Black') || a.img, zoneFor(p, a), 'Design') : pic(a.img, 'Design')) + '</div>'
           + '<div class="bta-tile-name">' + esc(a.name) + '</div></button>';
       }).join('') + '</div>';
     card._keep = keep || null;
@@ -102,7 +123,7 @@
       + '<input type="hidden" name="' + n + '[product]" value="' + p.id + '">'
       + '<input type="hidden" name="' + n + '[art]" value="' + esc(art || '') + '">'
       + '<div class="bta-mcard-sel">'
-      + '<div class="bta-mcard-pic">' + pic(p.img, p.brand || p.name) + '</div>'
+      + '<div class="bta-mcard-pic">' + mock(p.img, artFor(design, 'Black'), zoneFor(p, design), p.brand || p.name) + '</div>'
       + '<div><div class="bta-tile-sub">' + esc(p.brand) + ' &middot; ' + esc(priceText(p)) + '</div>'
       + (design ? '<div class="bta-mcard-design">' + (design.img ? '<img src="' + esc(design.img) + '" alt="">' : '')
           + 'Design: <strong>' + esc(design.name) + '</strong>' + (design.place ? ' &middot; ' + esc(design.place) : '')
@@ -113,7 +134,7 @@
       + p.sizes.map(function (s) { return '<th>' + esc(s) + '</th>'; }).join('') + '<th>Pcs</th></tr></thead><tbody>'
       + colors.map(function (c) {
         var row = qty[c] || {};
-        var ci = p.colorImgs && p.colorImgs[c] ? '<img class="bta-rowpic" src="' + esc(p.colorImgs[c]) + '" alt="">' : '';
+        var ci = p.colorImgs && p.colorImgs[c] ? '<span class="bta-rowpic">' + mock(p.colorImgs[c], artFor(design, c), zoneFor(p, design), '') + '</span>' : '';
         var v = design && design.versions && design.versions[c];
         var vi = v && v.label ? '<span class="bta-rowver">' + (v.img ? '<img src="' + esc(v.img) + '" alt="">' : '')
           + 'Version ' + esc(v.label) + (v.note ? ': ' + esc(v.note) : '') + '</span>' : '';

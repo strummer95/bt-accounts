@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.14.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.15.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -162,6 +162,15 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   release where that has run live, the files can come out of `assets/art/` to shrink the zip.
   Cap versions per Dillon's Chipply table: 1 Black, 2 Red (blue/yellow), 3 Khaki + Brown
   (yellow/red). Versions 2 and 3 have no files yet; White cap gets the default (version 1 file).
+- Mockups (0.15.0, schema 6), borrowed from PresStora (`pressly` repo, `includes/zones.php`):
+  a print location is a box on the product photo, x/y/w/h in % of the image; art is
+  contain-fitted and centred in it. Same location keys (`full_front`, `left_chest`, `right_chest`,
+  `hat`, …); `bta_location_key()` maps labels ("Hat Front" → `hat`). PresStora's real boxes are
+  drawn per style in its DB (nothing to copy), so `bta_default_zones()` holds starting boxes
+  (full front 25/20/50/55 is PresStora's default; left chest 55/23/15/15; hat 33/26/34/26) and
+  `products.zones` stores the shop's full set from the drag editor on the product form (a saved
+  set replaces the defaults). Left chest = wearer's left = right side of the photo.
+  "Put art X at location Y" = set the art's placement to Y; the mockup uses the product's Y box.
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

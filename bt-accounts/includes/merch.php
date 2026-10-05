@@ -133,6 +133,79 @@ function bta_product_image($p) {
     return $imgs ? (string) reset($imgs) : '';
 }
 
+/* ── Print locations + mockups ───────────────────────────────────────────
+ *
+ * Borrowed from PresStora (includes/zones.php): a print location is a box on
+ * the product photo, x / y / w / h as percentages of the image, and the art is
+ * contain-fitted and centred inside it. Same location keys as PresStora.
+ * Every product starts from the defaults below; the shop drags the boxes to
+ * fit each photo in wp-admin, which stores that product's own set.
+ */
+
+/** Location key => label. */
+function bta_location_catalog() {
+    return array(
+        'full_front'  => 'Full Front',
+        'left_chest'  => 'Left Chest',
+        'right_chest' => 'Right Chest',
+        'hat'         => 'Hat Front',
+        'full_back'   => 'Full Back',
+        'upper_back'  => 'Upper Back / Yoke',
+        'left_sleeve' => 'Left Sleeve',
+        'right_sleeve'=> 'Right Sleeve',
+    );
+}
+
+/** "Left Chest", "left-chest", "Hat Front" → PresStora location key, or ''. */
+function bta_location_key($label) {
+    $k = trim(preg_replace('/[^a-z0-9]+/', '_', strtolower((string) $label)), '_');
+    $alias = array('hat_front' => 'hat', 'cap' => 'hat', 'cap_front' => 'hat', 'front' => 'full_front',
+                   'center_chest' => 'full_front', 'back' => 'full_back', 'upper_back_yoke' => 'upper_back', 'yoke' => 'upper_back');
+    if (isset($alias[$k])) $k = $alias[$k];
+    return array_key_exists($k, bta_location_catalog()) ? $k : '';
+}
+
+/**
+ * Starting boxes, as a share of a front flat-lay photo. Full front is
+ * PresStora's own default (25 / 20 / 50 / 55). Left chest is the wearer's
+ * left, so it sits on the right of the photo. Back and sleeve locations have
+ * no box because only the front photo is shown.
+ */
+function bta_default_zones($p) {
+    if (bta_product_is_hat($p)) {
+        return array('hat' => array('x' => 33, 'y' => 26, 'w' => 34, 'h' => 26));
+    }
+    return array(
+        'full_front'  => array('x' => 25, 'y' => 20, 'w' => 50, 'h' => 55),
+        'left_chest'  => array('x' => 55, 'y' => 23, 'w' => 15, 'h' => 15),
+        'right_chest' => array('x' => 30, 'y' => 23, 'w' => 15, 'h' => 15),
+    );
+}
+
+/**
+ * A product's boxes. The editor saves the whole set, so a saved set replaces
+ * the defaults (a box the shop deleted stays deleted); none saved = defaults.
+ */
+function bta_product_zones($p) {
+    $ov = isset($p->zones) ? json_decode((string) $p->zones, true) : null;
+    if (!is_array($ov) || !$ov) return bta_default_zones($p);
+    $z = array();
+    foreach ($ov as $k => $b) {
+        if (is_array($b) && array_key_exists($k, bta_location_catalog())) $z[$k] = bta_clean_zone($b);
+    }
+    return $z;
+}
+
+function bta_clean_zone($b) {
+    $out = array();
+    foreach (array('x', 'y', 'w', 'h') as $k) {
+        $out[$k] = round(min(100, max(0, isset($b[$k]) ? (float) $b[$k] : 0)), 2);
+    }
+    if ($out['w'] < 1) $out['w'] = 1;
+    if ($out['h'] < 1) $out['h'] = 1;
+    return $out;
+}
+
 /** Art ids a product is printed with. Empty means any art in the library. */
 function bta_product_art_ids($p) {
     return array_values(array_filter(array_map('intval', explode(',', (string) $p->art_ids))));
@@ -188,6 +261,12 @@ function bta_save_product($account_id, $args, $id = 0) {
         'sort_order'     => isset($args['sort_order']) ? (int) $args['sort_order'] : 0,
         'status'         => (isset($args['status']) && $args['status'] === 'hidden') ? 'hidden' : 'active',
     );
+    if (isset($args['zones'])) {
+        $zin = is_array($args['zones']) ? $args['zones'] : json_decode((string) $args['zones'], true);
+        $zs  = array();
+        if (is_array($zin)) foreach ($zin as $k => $b) if (is_array($b) && array_key_exists($k, bta_location_catalog())) $zs[$k] = bta_clean_zone($b);
+        $row['zones'] = $zs ? wp_json_encode($zs) : '';
+    }
 
     if ($id) {
         $p = bta_get_product($id);

@@ -18,6 +18,7 @@ function bta_merch_handle_admin_post($action) {
             'art_ids' => isset($_POST['art_ids']) ? array_map('intval', (array) $_POST['art_ids']) : array(),
             'bulk_price' => $post('bulk_price'), 'ondemand_price' => $post('ondemand_price'), 'upcharge' => $post('upcharge'),
             'store_ref' => $post('store_ref'), 'notes' => $post('notes'), 'sort_order' => $post('sort_order'),
+            'zones' => !empty($_POST['zones_reset']) ? '' : $post('zones'),
             'status' => sanitize_key($post('status')),
         ), isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0);
         if (is_wp_error($r)) bta_admin_notice($r->get_error_message(), 'error');
@@ -125,6 +126,7 @@ function bta_admin_merch_sections($a) {
     if ($library) echo '<p class="description">Tick the designs this product comes in. None ticked means they can pick any design in the library.</p>';
     echo '</td></tr>';
     echo '<tr><th>Mockup image URL</th><td><input name="image_url" class="large-text" value="' . esc_attr($f('image_url')) . '" placeholder="https://boomerts.com/wp-content/uploads/..."><p class="description">Leave blank to use the catalogue photo of the black colourway for this style number.</p></td></tr>';
+    if ($edit_p) bta_admin_zone_editor($edit_p, $library);
     echo '<tr><th>Store item ref</th><td><input name="store_ref" class="regular-text" value="' . esc_attr($f('store_ref')) . '"><p class="description">The item&rsquo;s id or link on their web store, for matching orders up later.</p></td></tr>';
     echo '<tr><th>Order / status</th><td><input name="sort_order" type="number" style="width:70px" value="' . esc_attr($f('sort_order', '0')) . '"> <select name="status"><option value="active">Showing</option><option value="hidden"' . selected($f('status'), 'hidden', false) . '>Hidden</option></select></td></tr>';
     echo '</table><p><button class="button button-primary">' . ($edit_p ? 'Save product' : 'Add product') . '</button></p></form>';
@@ -302,4 +304,75 @@ function bta_admin_order_money($order) {
     echo '<button class="button button-primary">Record payment</button>';
     echo '<p class="description">A minus amount records a refund.</p>';
     echo '</form></div>';
+}
+
+/**
+ * Print-location boxes over the product photo, PresStora style: drag a box to
+ * move it, drag its corner to resize. Saved as % of the photo with the product.
+ */
+function bta_admin_zone_editor($p, $library) {
+    $img   = bta_product_image($p);
+    $zones = bta_product_zones($p);
+    $cat   = bta_location_catalog();
+    $art   = '';
+    foreach (bta_product_art_choices($p, $library) as $a) { $art = bta_art_preview($a); if ($art) break; }
+
+    echo '<tr><th>Print locations</th><td>';
+    if (!$img) {
+        echo '<p class="description">Needs a picture first (catalogue photo or the image URL above). Using the standard boxes until then.</p>';
+        echo '<input type="hidden" name="zones" value=""></td></tr>';
+        return;
+    }
+    echo '<p class="description" style="margin-top:0">Where art lands on this item&rsquo;s mockups. Drag a box to move it, drag the corner to resize. A design placed at <em>Left Chest</em> fills the Left Chest box.</p>';
+    echo '<div id="bta-zed" style="position:relative;display:inline-block;max-width:420px;border:1px solid #ccd0d4;background:#fff;user-select:none">';
+    echo '<img src="' . esc_url($img) . '" alt="" style="display:block;max-width:420px;width:100%;height:auto" draggable="false">';
+    echo '</div>';
+    echo '<p><select id="bta-zed-add"><option value="">Add a location&hellip;</option>';
+    // Only the front photo is shown, so only front locations can be boxed on it.
+    foreach (array('full_front', 'left_chest', 'right_chest', 'hat') as $k) echo '<option value="' . esc_attr($k) . '">' . esc_html($cat[$k]) . '</option>';
+    echo '</select> <label style="margin-left:12px"><input type="checkbox" name="zones_reset" value="1"> Reset to the standard boxes</label></p>';
+    echo '<input type="hidden" name="zones" id="bta-zed-val" value="' . esc_attr(wp_json_encode((object) $zones)) . '">';
+    ?>
+<script>
+(function () {
+  var wrap = document.getElementById('bta-zed'), val = document.getElementById('bta-zed-val');
+  var labels = <?php echo wp_json_encode($cat); ?>, art = <?php echo wp_json_encode($art); ?>;
+  var zones = JSON.parse(val.value || '{}');
+  function save() { val.value = JSON.stringify(zones); }
+  function box(k) {
+    var z = zones[k], el = document.createElement('div');
+    el.style.cssText = 'position:absolute;box-sizing:border-box;border:2px dashed #e535ab;background:rgba(229,53,171,.12);cursor:move;'
+      + 'left:' + z.x + '%;top:' + z.y + '%;width:' + z.w + '%;height:' + z.h + '%';
+    el.innerHTML = (art ? '<img src="' + art + '" style="width:100%;height:100%;object-fit:contain;opacity:.6;pointer-events:none" alt="">' : '')
+      + '<span style="position:absolute;top:-19px;left:-2px;background:#e535ab;color:#fff;font:600 11px/1.4 sans-serif;padding:0 5px;border-radius:3px;white-space:nowrap">'
+      + labels[k] + ' <a href="#" data-del style="color:#fff;text-decoration:none">&times;</a></span>'
+      + '<span data-rs style="position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;background:#e535ab;border:2px solid #fff;cursor:se-resize"></span>';
+    el.addEventListener('mousedown', function (e) {
+      if (e.target.hasAttribute('data-del')) return;
+      e.preventDefault();
+      var r = wrap.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, o = { x: z.x, y: z.y, w: z.w, h: z.h };
+      var rs = e.target.hasAttribute('data-rs');
+      function mv(ev) {
+        var dx = (ev.clientX - sx) / r.width * 100, dy = (ev.clientY - sy) / r.height * 100;
+        if (rs) { z.w = Math.max(3, Math.min(100 - z.x, o.w + dx)); z.h = Math.max(3, Math.min(100 - z.y, o.h + dy)); }
+        else { z.x = Math.max(0, Math.min(100 - z.w, o.x + dx)); z.y = Math.max(0, Math.min(100 - z.h, o.y + dy)); }
+        ['x', 'y', 'w', 'h'].forEach(function (k2) { z[k2] = Math.round(z[k2] * 100) / 100; });
+        el.style.left = z.x + '%'; el.style.top = z.y + '%'; el.style.width = z.w + '%'; el.style.height = z.h + '%';
+      }
+      function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); save(); }
+      document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+    });
+    el.querySelector('[data-del]').addEventListener('click', function (e) { e.preventDefault(); delete zones[k]; el.remove(); save(); });
+    wrap.appendChild(el);
+  }
+  Object.keys(zones).forEach(box);
+  document.getElementById('bta-zed-add').addEventListener('change', function () {
+    var k = this.value; this.value = '';
+    if (!k || zones[k]) return;
+    zones[k] = { x: 35, y: 30, w: 30, h: 30 }; box(k); save();
+  });
+})();
+</script>
+    <?php
+    echo '</td></tr>';
 }
