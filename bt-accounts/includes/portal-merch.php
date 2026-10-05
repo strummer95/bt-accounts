@@ -185,6 +185,7 @@ function bta_merch_artwork($account, $errors) {
             $meta = array_filter(array($a->placement, $a->colors));
             if ($meta) echo '<div class="bta-sub">' . esc_html(implode(' · ', $meta)) . '</div>';
             if ($a->notes !== '') echo '<div class="bta-sub">' . esc_html($a->notes) . '</div>';
+            if (bta_art_garment_colors($a)) echo '<div class="bta-sub">Only on ' . esc_html(implode(', ', bta_art_garment_colors($a))) . ' garments</div>';
             foreach (bta_art_versions($a) as $v) {
                 echo '<div class="bta-sub">Version ' . esc_html($v['label']) . ($v['note'] !== '' ? ' (' . esc_html($v['note']) . ')' : '') . ' on ' . esc_html(implode(', ', $v['colors'])) . '</div>';
             }
@@ -263,6 +264,7 @@ function bta_merch_form_products($account, $type) {
                 'img'      => bta_art_preview($a),
                 'place'    => bta_line_placement($p, $a),
                 'zone'     => bta_location_key(bta_line_placement($p, $a)),
+                'only'     => bta_art_garment_colors($a),
                 'versions' => (object) $vers,
             );
         }
@@ -273,6 +275,7 @@ function bta_merch_form_products($account, $type) {
             'colors' => bta_product_colors($p),
             'img'    => bta_product_image($p),
             'zones'  => (object) bta_product_zones($p),
+            'extra'  => $p->extra_price !== null ? (float) $p->extra_price : null,
             'colorImgs' => (object) array_filter(array_combine(bta_product_colors($p) ?: array(), array_map(function ($c) use ($p) { return bta_product_color_image($p, $c); }, bta_product_colors($p)))),
             'sizes'  => bta_product_sizes($p),
             'prices' => $prices,
@@ -367,6 +370,7 @@ function bta_merch_order_form($user, $account, $type, $errors, $posted) {
             $lines[] = array(
                 'product' => isset($ln['product']) ? (int) $ln['product'] : 0,
                 'art'     => isset($ln['art']) && is_scalar($ln['art']) ? (int) $ln['art'] : 0,
+                'extra'   => isset($ln['extra']) && is_scalar($ln['extra']) ? (int) $ln['extra'] : 0,
                 'qty'     => (object) $qty,
             );
         }
@@ -445,6 +449,14 @@ function bta_handle_merch_submit($user, $account, $type) {
         if (!isset($choices[$art])) $art = count($choices) === 1 ? (int) key($choices) : 0;
         if (!$art && count($choices) > 1) { $errors[] = 'Pick the design for ' . $p->name . '.'; continue; }
 
+        // An optional second design at a different location (a back print).
+        $extra = isset($ln['extra']) && is_scalar($ln['extra']) ? (int) $ln['extra'] : 0;
+        if ($extra && (!isset($choices[$extra]) || $extra === $art
+            || bta_location_key(bta_line_placement($p, $choices[$extra])) === bta_location_key(bta_line_placement($p, $choices[$art] ?? null)))) {
+            $errors[] = 'The second print on ' . $p->name . ' has to go somewhere other than the first.';
+            continue;
+        }
+
         $allowed = bta_product_sizes($p);
         $colors  = bta_product_colors($p);
         $found   = 0;
@@ -458,7 +470,13 @@ function bta_handle_merch_submit($user, $account, $type) {
                 if ($q > 0 && in_array((string) $s, $allowed, true)) $sizes[(string) $s] = min($q, 100000);
             }
             if (!$sizes) continue;
-            $lines[] = array('product' => $p, 'color' => $color, 'art_id' => $art, 'sizes' => $sizes);
+            foreach (array_filter(array($art, $extra)) as $aid) {
+                if (!bta_art_on_color($choices[$aid], $color)) {
+                    $errors[] = $choices[$aid]->name . ' only goes on ' . implode(' or ', bta_art_garment_colors($choices[$aid])) . ' ' . $p->name . ', not ' . $color . '.';
+                    continue 2;
+                }
+            }
+            $lines[] = array('product' => $p, 'color' => $color, 'art_id' => $art, 'extra_id' => $extra, 'sizes' => $sizes);
             $found++;
         }
         if (!$found) $errors[] = 'Add quantities for ' . $p->name . ', or remove it.';

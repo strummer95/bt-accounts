@@ -697,6 +697,9 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 .bta-tile-img .bta-mock > img:first-child, .bta-mcard-pic .bta-mock > img:first-child { height: 100%; width: auto; object-fit: contain; }
 .bta-mock-art { position: absolute; object-fit: contain; pointer-events: none; }
 .bta-tile-img { background: #fff; }
+.bta-mcard-extra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 15px; }
+.bta-mcard-extra select.bta-input { width: auto; display: inline-block; padding: 6px 10px; font-size: 15px; margin-left: 6px; }
+.bta-mcard-extra img { width: 40px; height: 40px; object-fit: contain; background: #111; border-radius: 4px; }
 .bta-rowver {
   display: flex; align-items: center; gap: 5px; margin-top: 3px; font-family: Tahoma, sans-serif;
   font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--bta-muted);

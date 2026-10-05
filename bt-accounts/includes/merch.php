@@ -257,6 +257,7 @@ function bta_save_product($account_id, $args, $id = 0) {
         'bulk_price'     => bta_parse_money(isset($args['bulk_price']) ? $args['bulk_price'] : ''),
         'ondemand_price' => bta_parse_money(isset($args['ondemand_price']) ? $args['ondemand_price'] : ''),
         'upcharge'       => (float) bta_parse_money(isset($args['upcharge']) ? $args['upcharge'] : ''),
+        'extra_price'    => bta_parse_money(isset($args['extra_price']) ? $args['extra_price'] : ''),
         'notes'          => sanitize_textarea_field(isset($args['notes']) ? $args['notes'] : ''),
         'sort_order'     => isset($args['sort_order']) ? (int) $args['sort_order'] : 0,
         'status'         => (isset($args['status']) && $args['status'] === 'hidden') ? 'hidden' : 'active',
@@ -360,6 +361,7 @@ function bta_save_library_art($account_id, $args, $id = 0) {
         'name'        => $name,
         'placement'   => sanitize_text_field(isset($args['placement']) ? $args['placement'] : ''),
         'colors'      => sanitize_text_field(isset($args['colors']) ? $args['colors'] : ''),
+        'garment_colors' => implode(',', array_filter(array_map('trim', explode(',', sanitize_text_field(isset($args['garment_colors']) ? $args['garment_colors'] : ''))), 'strlen')),
         'notes'       => sanitize_textarea_field(isset($args['notes']) ? $args['notes'] : ''),
         'preview_url' => esc_url_raw(isset($args['preview_url']) ? $args['preview_url'] : ''),
         'status'      => (isset($args['status']) && $args['status'] === 'archived') ? 'archived' : 'active',
@@ -451,10 +453,27 @@ function bta_art_version($a, $color) {
  * a hat placement, a shirt needs one that isn't. No placement set = anywhere.
  */
 function bta_art_fits($p, $a) {
+    if (bta_art_garment_colors($a) && bta_product_colors($p)) {
+        $any = false;
+        foreach (bta_product_colors($p) as $c) if (bta_art_on_color($a, $c)) { $any = true; break; }
+        if (!$any) return false;
+    }
     $places = array_filter(array_map('trim', explode(',', (string) $a->placement)), 'strlen');
     if (!$places) return true;
     $hat = bta_product_is_hat($p);
     foreach ($places as $pl) if ((stripos($pl, 'hat') !== false) === $hat) return true;
+    return false;
+}
+
+/** Garment colours a design is limited to (empty = any colour). */
+function bta_art_garment_colors($a) {
+    return array_values(array_filter(array_map('trim', explode(',', isset($a->garment_colors) ? (string) $a->garment_colors : '')), 'strlen'));
+}
+
+function bta_art_on_color($a, $color) {
+    $only = bta_art_garment_colors($a);
+    if (!$only) return true;
+    foreach ($only as $c) if (strcasecmp($c, (string) $color) === 0) return true;
     return false;
 }
 
@@ -541,11 +560,17 @@ function bta_create_merch_order($account, $user, $type, $data, $lines) {
     $sub    = 0.0;
     $i      = 0;
     foreach ($lines as $ln) {
-        $p   = $ln['product'];
-        $art = $ln['art_id'] ? bta_get_library_art($ln['art_id']) : null;
-        $oid = 0;
-        if ($art) {
-            // The version of the design that goes on this garment colour.
+        $p = $ln['product'];
+
+        // The line's designs: the main one, plus an extra location (a back
+        // print) if one was added. Each is copied to the order's own art in
+        // the version that goes on this garment colour, once per file.
+        $locs = array();
+        $oid  = 0;
+        $ids  = array_filter(array((int) $ln['art_id'], isset($ln['extra_id']) ? (int) $ln['extra_id'] : 0));
+        foreach ($ids as $aid) {
+            $art = bta_get_library_art($aid);
+            if (!$art) continue;
             $ver = bta_art_version($art, $ln['color']);
             $key = (int) $art->id . '|' . $ver['label'];
             if (!isset($copied[$key])) {
@@ -559,20 +584,27 @@ function bta_create_merch_order($account, $user, $type, $data, $lines) {
                 ));
                 $copied[$key] = (int) $wpdb->insert_id;
             }
-            $oid = $copied[$key];
+            if (!$oid) $oid = $copied[$key];
+            $locs[] = array('placement' => bta_line_placement($p, $art), 'art_id' => $copied[$key], 'emb' => $p->decoration === 'embroidery' ? 'logo' : '');
         }
+        if (!$locs) $locs[] = array('placement' => bta_line_placement($p, null), 'art_id' => 0, 'emb' => $p->decoration === 'embroidery' ? 'logo' : '');
 
-        $qty = 0; $line_total = 0.0; $priced = true;
+        // An extra location adds the product's extra-location price to every
+        // piece; with no such price set, the shop prices the line by hand.
+        $extra  = count($locs) > 1;
+        $add    = $extra && $p->extra_price !== null && $p->extra_price !== '' ? (float) $p->extra_price : 0.0;
+        $qty = 0; $line_total = 0.0; $priced = !$extra || $add > 0;
         foreach ($ln['sizes'] as $sz => $q) {
             $qty += $q;
             $each = bta_product_price($p, $type, $sz);
-            if ($each === null) $priced = false; else $line_total += $each * $q;
+            if ($each === null) $priced = false; else $line_total += ($each + $add) * $q;
         }
         $base = $type === 'ondemand' ? $p->ondemand_price : $p->bulk_price;
-        $note = !$priced ? 'Priced by the shop.' : ((float) $p->upcharge > 0 ? '2XL and up +' . bta_money($p->upcharge) . ' each' : '');
-
-        $place = bta_line_placement($p, $art);
-        $locs  = array(array('placement' => $place, 'art_id' => $oid, 'emb' => $p->decoration === 'embroidery' ? 'logo' : ''));
+        $bits = array();
+        if ($add > 0) $bits[] = 'includes ' . bta_money($add) . ' each for the second print';
+        if ((float) $p->upcharge > 0) $bits[] = '2XL and up +' . bta_money($p->upcharge) . ' each';
+        $note = !$priced ? ($extra ? 'Second print location: priced by the shop.' : 'Priced by the shop.') : ucfirst(implode('; ', $bits));
+        if ($priced && $base !== null) $base = (float) $base + $add;
 
         $row = array(
             'order_id'   => $order_id,

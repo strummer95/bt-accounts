@@ -11,10 +11,12 @@
  * v5: colour versions on library art; Leonid's Bottle Cap design.
  * v6: print-location boxes per product, for mockups.
  * v7: Leonid's Deep in the Heart of Texas and Make Me Smile Tour 2026 designs.
+ * v8: garment-colour limits on art, a second print location per line with its
+ *     own price per product, and Leonid's Tour 2026 record and Fall 2026 dates.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 7);
+define('BTA_SCHEMA_VERSION', 8);
 
 function bta_table($name) {
     global $wpdb;
@@ -219,6 +221,7 @@ function bta_install_schema() {
         bulk_price DECIMAL(10,2) NULL,
         ondemand_price DECIMAL(10,2) NULL,
         upcharge DECIMAL(10,2) NOT NULL DEFAULT 0,
+        extra_price DECIMAL(10,2) NULL,
         notes TEXT NULL,
         sort_order INT NOT NULL DEFAULT 0,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -239,6 +242,7 @@ function bta_install_schema() {
         colors VARCHAR(190) NOT NULL DEFAULT '',
         notes TEXT NULL,
         variants MEDIUMTEXT NULL,
+        garment_colors VARCHAR(255) NOT NULL DEFAULT '',
         added_by VARCHAR(20) NOT NULL DEFAULT 'shop',
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -275,6 +279,50 @@ function bta_install_schema() {
     bta_seed_leonid();
     bta_seed_bottle_cap();
     bta_seed_leonid_designs();
+    bta_seed_leonid_tour();
+}
+
+/**
+ * Leonid's second Tour 2026 front (the record) and the Fall 2026 tour-dates
+ * back. The dates are white text, so they go on black shirts only. The first
+ * Tour 2026 design becomes "(Van)" so the two can be told apart.
+ */
+function bta_seed_leonid_tour() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_tour_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib = bta_table('art_library');
+
+    $wpdb->update($lib, array('name' => 'Make Me Smile Tour 2026 (Van)'),
+        array('account_id' => $acct_id, 'name' => 'Make Me Smile Tour 2026'));
+
+    $designs = array(
+        array('Make Me Smile Tour 2026 (Record)', 'make-me-smile-tour-2026-record.png', 'leonid-make-me-smile-tour-2026-record.png', '', 'Full Front', '', 'Record, Tour 2026 and the band logo.'),
+        array('Fall 2026 Tour Dates', 'fall-2026-tour-dates.png', 'leonid-fall-2026-tour-dates.png', 'fall-2026-tour-dates-preview.png', 'Full Back', 'Black', 'Band logo, Make Me Smile Fall 2026 and every date, Sept 13 to Nov 28. White text: black shirts only.'),
+    );
+    foreach ($designs as $d) {
+        if ($wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, $d[0]))) continue;
+        $url  = bta_seed_art_file($d[1], $d[2]);
+        $prev = $d[3] !== '' ? bta_seed_art_file($d[3], 'leonid-' . $d[3]) : $url;
+        $wpdb->insert($lib, array(
+            'account_id'     => $acct_id,
+            'name'           => $d[0],
+            'file_url'       => $url,
+            'file_name'      => $d[2],
+            'preview_url'    => $prev,
+            'placement'      => $d[4],
+            'garment_colors' => $d[5],
+            'colors'         => '',
+            'notes'          => $d[6],
+            'variants'       => '',
+            'added_by'       => 'shop',
+            'status'         => 'active',
+            'created_at'     => current_time('mysql'),
+        ));
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+    update_option('bta_seed_leonid_tour_done', 1);
 }
 
 /**

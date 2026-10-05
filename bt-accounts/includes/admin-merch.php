@@ -17,6 +17,7 @@ function bta_merch_handle_admin_post($action) {
             'image_url' => $post('image_url'), 'decoration' => $post('decoration'), 'placement' => $post('placement'),
             'art_ids' => isset($_POST['art_ids']) ? array_map('intval', (array) $_POST['art_ids']) : array(),
             'bulk_price' => $post('bulk_price'), 'ondemand_price' => $post('ondemand_price'), 'upcharge' => $post('upcharge'),
+            'extra_price' => $post('extra_price'),
             'store_ref' => $post('store_ref'), 'notes' => $post('notes'), 'sort_order' => $post('sort_order'),
             'zones' => !empty($_POST['zones_reset']) ? '' : $post('zones'),
             'status' => sanitize_key($post('status')),
@@ -39,6 +40,7 @@ function bta_merch_handle_admin_post($action) {
         $r = bta_save_library_art($acct, array(
             'name' => $post('name'), 'file_url' => $post('file_url'), 'preview_url' => $post('preview_url'),
             'placement' => $post('placement'), 'colors' => $post('colors'), 'notes' => $post('notes'),
+            'garment_colors' => $post('garment_colors'),
             'status' => sanitize_key($post('status')),
             'variants' => isset($_POST['variants']) && is_array($_POST['variants']) ? wp_unslash($_POST['variants']) : array(),
         ), isset($_POST['art_id']) ? (int) $_POST['art_id'] : 0);
@@ -113,7 +115,8 @@ function bta_admin_merch_sections($a) {
     echo '<tr><th>Offered on</th><td><select name="channels">';
     foreach ($ch as $k => $label) echo '<option value="' . esc_attr($k) . '"' . selected($f('channels', 'both'), $k, false) . '>' . esc_html($label) . '</option>';
     echo '</select></td></tr>';
-    echo '<tr><th>Prices</th><td>Bulk $<input name="bulk_price" style="width:80px" value="' . esc_attr($f('bulk_price')) . '"> &nbsp; On demand $<input name="ondemand_price" style="width:80px" value="' . esc_attr($f('ondemand_price')) . '"> &nbsp; 2XL and up add $<input name="upcharge" style="width:70px" value="' . esc_attr((float) $f('upcharge') ? $f('upcharge') : '') . '"></td></tr>';
+    echo '<tr><th>Prices</th><td>Bulk $<input name="bulk_price" style="width:80px" value="' . esc_attr($f('bulk_price')) . '"> &nbsp; On demand $<input name="ondemand_price" style="width:80px" value="' . esc_attr($f('ondemand_price')) . '"> &nbsp; 2XL and up add $<input name="upcharge" style="width:70px" value="' . esc_attr((float) $f('upcharge') ? $f('upcharge') : '') . '">'
+       . '<br>Second print location add $<input name="extra_price" style="width:70px;margin-top:6px" value="' . esc_attr($f('extra_price')) . '"> <span class="description">per piece, e.g. tour dates on the back. Blank: you price those lines by hand.</span></td></tr>';
     echo '<tr><th>Decoration</th><td><select name="decoration">';
     foreach (bta_decorations() as $k => $label) echo '<option value="' . esc_attr($k) . '"' . selected($f('decoration', 'print'), $k, false) . '>' . esc_html($label) . '</option>';
     echo '</select> <input name="placement" style="width:180px" value="' . esc_attr($f('placement')) . '" placeholder="Full Front"></td></tr>';
@@ -151,7 +154,7 @@ function bta_admin_merch_sections($a) {
         foreach (bta_art_versions($art) as $v) $vtxt[] = $v['label'] . ': ' . implode('/', $v['colors']) . ($v['file_url'] === '' ? ' (no file yet)' : '');
         echo '<td><strong>' . esc_html($art->name) . '</strong>' . ($art->notes !== '' ? '<br><span style="color:#666">' . esc_html($art->notes) . '</span>' : '')
            . ($vtxt ? '<br><span style="color:#666">Versions ' . esc_html(implode(' · ', $vtxt)) . '</span>' : '') . '</td>';
-        echo '<td>' . esc_html(implode(' · ', array_filter(array($art->placement, $art->colors)))) . '</td>';
+        echo '<td>' . esc_html(implode(' · ', array_filter(array($art->placement, $art->colors, bta_art_garment_colors($art) ? 'only on ' . implode('/', bta_art_garment_colors($art)) : '')))) . '</td>';
         echo '<td><a href="' . esc_url($art->file_url) . '" target="_blank" rel="noopener">' . esc_html($art->file_name) . '</a></td>';
         echo '<td>' . ($art->added_by === 'account' ? '<strong style="color:#b26d00">Account</strong>' : 'Shop') . ($art->status !== 'active' ? ' &middot; archived' : '') . '</td>';
         echo '<td style="white-space:nowrap"><a class="button button-small" href="' . esc_url(add_query_arg('art', (int) $art->id, $base) . '#bta-art-form') . '">Edit</a> ';
@@ -173,6 +176,7 @@ function bta_admin_merch_sections($a) {
     echo '<tr><th>Preview image URL</th><td><input name="preview_url" class="large-text" value="' . esc_attr($g('preview_url')) . '"><p class="description">Only needed when the file itself is not an image (AI, PDF, EPS).</p></td></tr>';
     echo '<tr><th>Placement</th><td><input name="placement" class="regular-text" value="' . esc_attr($g('placement')) . '" placeholder="Full Front"><p class="description">Several allowed, comma separated, e.g. <code>Hat Front, Left Chest</code>: caps take the hat one, shirts the other.</p></td></tr>';
     echo '<tr><th>Ink colours</th><td><input name="colors" class="regular-text" value="' . esc_attr($g('colors')) . '"></td></tr>';
+    echo '<tr><th>Only on garment colours</th><td><input name="garment_colors" class="regular-text" value="' . esc_attr(str_replace(',', ', ', $g('garment_colors'))) . '" placeholder="Black"><p class="description">Leave blank for any colour. For example, white-text art on black shirts only.</p></td></tr>';
     echo '<tr><th>Notes</th><td><textarea name="notes" rows="2" class="large-text">' . esc_textarea($g('notes')) . '</textarea></td></tr>';
     // Colour versions: the design changes with the garment colour.
     $vers = $edit_a ? bta_art_versions($edit_a) : array();

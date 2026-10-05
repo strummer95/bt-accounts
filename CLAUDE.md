@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.15.1**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -175,6 +175,13 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   and Make Me Smile Tour 2026, Full Front, PNGs (from Dillon's webps) in `assets/art/`. Design
   choices are filtered by `bta_art_fits()`: a cap only gets art with a hat placement, a shirt only
   art with a non-hat one.
+- 0.16.0 (schema 8): `art_library.garment_colors` limits a design to garment colours
+  (`bta_art_on_color()`; Fall 2026 Tour Dates is white text → Black only). A form card can add a
+  **second print** at a different location (`line[i][extra]`, e.g. dates on the back); it becomes a
+  second entry in the line's `locations`, and `products.extra_price` is added per piece (blank =
+  line priced by the shop). Seeded by `bta_seed_leonid_tour()`: Tour 2026 (Record) Full Front, Fall
+  2026 Tour Dates Full Back; the earlier Tour 2026 renamed "(Van)". No back photos, so a back-only
+  design shows as the art itself instead of a mockup.
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

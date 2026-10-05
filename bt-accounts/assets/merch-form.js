@@ -116,19 +116,42 @@
     var design = null;
     p.art.forEach(function (a) { if (String(a.id) === String(art)) design = a; });
     var qty = (saved && saved.qty) || {};
-    var colors = p.colors.length ? p.colors : [''];
+    // Optional second print somewhere else on the garment (e.g. tour dates on the back).
+    var others = p.art.filter(function (a) { return design && a.id !== design.id && a.zone !== design.zone; });
+    var extraId = saved && saved.extra ? String(saved.extra) : '';
+    var extra = null;
+    others.forEach(function (a) { if (String(a.id) === extraId) extra = a; });
+    if (!extra) extraId = '';
+    card.dataset.extra = extraId;
+    // Colours every chosen design is allowed on (white-text art: black shirts only).
+    var colors = (p.colors.length ? p.colors : ['']).filter(function (c) {
+      return [design, extra].every(function (a) { return !a || !a.only || !a.only.length || !c || a.only.indexOf(c) !== -1; });
+    });
+    var limited = colors.length < (p.colors.length || 1);
+    var bigPic = design && !zoneFor(p, design) && design.img
+      ? pic(design.img, design.name)
+      : mock(p.img, artFor(design, colors[0] || 'Black'), zoneFor(p, design), p.brand || p.name);
 
     card.dataset.product = p.id;
     card.innerHTML = head(card, esc(p.name), 'product')
       + '<input type="hidden" name="' + n + '[product]" value="' + p.id + '">'
       + '<input type="hidden" name="' + n + '[art]" value="' + esc(art || '') + '">'
       + '<div class="bta-mcard-sel">'
-      + '<div class="bta-mcard-pic">' + mock(p.img, artFor(design, 'Black'), zoneFor(p, design), p.brand || p.name) + '</div>'
+      + '<div class="bta-mcard-pic">' + bigPic + '</div>'
       + '<div><div class="bta-tile-sub">' + esc(p.brand) + ' &middot; ' + esc(priceText(p)) + '</div>'
       + (design ? '<div class="bta-mcard-design">' + (design.img ? '<img src="' + esc(design.img) + '" alt="">' : '')
           + 'Design: <strong>' + esc(design.name) + '</strong>' + (design.place ? ' &middot; ' + esc(design.place) : '')
           + (p.art.length > 1 ? ' <button type="button" class="bta-linkbtn" data-act="design">Change</button>' : '') + '</div>'
         : '<div class="bta-tile-sub">Design: the shop will confirm it with you.</div>')
+      + (others.length ? '<div class="bta-mcard-extra"><label>Second print '
+          + '<select class="bta-input bta-extra-sel" name="' + n + '[extra]"><option value="">None</option>'
+          + others.map(function (a) {
+            return '<option value="' + a.id + '"' + (String(a.id) === extraId ? ' selected' : '') + '>' + esc(a.name) + (a.place ? ' (' + esc(a.place) + ')' : '') + '</option>';
+          }).join('') + '</select></label>'
+          + (extra ? (extra.img ? '<img src="' + esc(extra.img) + '" alt="">' : '')
+            + '<span class="bta-tile-sub">' + (p.extra !== null && p.extra !== undefined ? '+' + money(p.extra) + ' each' : 'priced by the shop') + '</span>' : '')
+          + '</div>' : '')
+      + (limited ? '<div class="bta-tile-sub" style="margin-top:6px">Only on ' + esc(colors.join(', ') || 'none of this item\'s colours') + ' with this design.</div>' : '')
       + '</div></div>'
       + '<div class="bta-qtywrap"><table class="bta-qtygrid"><thead><tr><th>Colour</th>'
       + p.sizes.map(function (s) { return '<th>' + esc(s) + '</th>'; }).join('') + '<th>Pcs</th></tr></thead><tbody>'
@@ -163,6 +186,9 @@
       var out = card.querySelector('.bta-line-total');
       if (!p || !out) return;
       var cardPcs = 0, cardTotal = 0;
+      var hasExtra = !!card.dataset.extra;
+      var add = hasExtra && p.extra !== null && p.extra !== undefined ? p.extra : 0;
+      var extraUnpriced = hasExtra && !add;
       card.querySelectorAll('.bta-qtygrid tbody tr').forEach(function (tr) {
         var rowPcs = 0;
         tr.querySelectorAll('input[data-size]').forEach(function (inp) {
@@ -170,7 +196,7 @@
           if (q < 1) return;
           rowPcs += q;
           var each = p.prices[inp.dataset.size];
-          if (each === null || each === undefined) unpriced = true; else cardTotal += each * q;
+          if (each === null || each === undefined || extraUnpriced) unpriced = true; else cardTotal += (each + add) * q;
         });
         tr.querySelector('.bta-rowpcs').textContent = rowPcs || '';
         cardPcs += rowPcs;
@@ -192,7 +218,7 @@
     var card = t.closest('.bta-mcard');
     if (t.dataset.pickProduct) return showDesigns(card, byId[t.dataset.pickProduct]);
     if (t.dataset.pickArt) {
-      return showGrid(card, byId[card.dataset.product], { art: t.dataset.pickArt, qty: card._keep });
+      return showGrid(card, byId[card.dataset.product], { art: t.dataset.pickArt, extra: card.dataset.extra, qty: card._keep });
     }
     if (t.dataset.act === 'product') return showProducts(card);
     if (t.dataset.act === 'design') return showDesigns(card, byId[card.dataset.product], gridQty(card));
@@ -212,6 +238,11 @@
   }
 
   wrap.addEventListener('input', recalc);
+  wrap.addEventListener('change', function (e) {
+    if (!e.target.classList.contains('bta-extra-sel')) return;
+    var card = e.target.closest('.bta-mcard');
+    showGrid(card, byId[card.dataset.product], { art: card.querySelector('input[name$="[art]"]').value, extra: e.target.value, qty: gridQty(card) });
+  });
   addBtn.addEventListener('click', function () {
     var card = addCard(null);
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
