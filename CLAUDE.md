@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.8**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.9**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -119,7 +119,8 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   `bta_production_due()`, the business day before. No holiday calendar.
 - Line item description format is Dillon's, exactly: garment name, blank line, `LOCATION:` /
   art name per location (blank line between), blank line, `Blanks: supplier, PO x, arriving date`.
-  Production note does not repeat end customer, PO, ship-to or blanks (shown elsewhere in Printavo).
+  Production note is ONE line (order # · employee-portal link); Dillon wants it out of the way.
+  Ship method goes in Customer Notes (`Ship via: …`) above the order's own notes.
 - Order lines now have `locations` (JSON list of placement / art_id / emb) plus `unit_price` and
   `price_note`. `placement` and `art_id` still hold a summary and the first logo for old readers.
   Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.

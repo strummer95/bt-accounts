@@ -706,33 +706,16 @@ function bta_pv_staff_link($o) {
     return home_url('/employees/accounts/' . strtolower($o->order_number));
 }
 
-/** Everything about the order as text, so nothing depends on field names. */
+/**
+ * The production note: one line, so the quote's own details stay near the
+ * top of the page in Printavo. Everything else already shows there: PO,
+ * dates, ship-to, items, category, art (production files) and the blanks
+ * (item descriptions).
+ */
 function bta_pv_production_note($o, $account, $items, $art, $artby) {
-    $user = bta_get_user($o->user_id);
-    $d = function ($v) { return $v ? date_i18n('M j, Y', strtotime($v)) : ''; };
-    $L = array();
-    $L[] = 'BT Accounts order ' . $o->order_number . ' from ' . $account->name
-         . ($user ? ', submitted by ' . ($user->display_name ? $user->display_name : $user->username) : '')
-         . ($o->submitted_at ? ' on ' . $d($o->submitted_at) : '') . '.';
-    // End customer and ship-to show in Printavo's Customer Shipping, the PO in
-    // PO #, and the blanks in each item's description, so none repeat here.
-    if ($o->in_hands_date)       $L[] = 'In hands (asked for): ' . $d($o->in_hands_date);
-    $L[] = 'Customer due: ' . bta_ymd_label(bta_customer_due($o)) . ' · Production due: ' . bta_ymd_label(bta_production_due($o));
-    if ($o->ship_method !== '') $L[] = 'Ship via: ' . $o->ship_method;
-    $L[] = '';
-    $L[] = 'Items:';
-    foreach ($items as $i => $it) $L[] = ($i + 1) . '. ' . bta_pv_line_text($it, $artby);
-    if ($art) {
-        $L[] = '';
-        $L[] = 'Art:';
-        foreach ($art as $a) $L[] = $a->label . ': ' . $a->file_url;
-    }
-    $L[] = '';
-    $L[] = 'Order in the employee portal: ' . bta_pv_staff_link($o);
-    return implode("\n", $L);
+    return $o->order_number . ' · ' . bta_pv_staff_link($o);
 }
 
-/** One order line as a Printavo line item group: the garment plus its imprints. */
 /** The blanks line for an order: supplier, their PO, arrival. */
 function bta_pv_blanks_text($o) {
     $arr = $o->expected_arrival ? date_i18n('M j, Y', strtotime($o->expected_arrival)) : '';
@@ -848,7 +831,7 @@ function bta_pv_create_quote($o) {
         'customerDueAt'   => $due,
         'dueAt'           => $due_at,
         'productionNote'  => bta_pv_production_note($o, $account, $items, $art, $artby),
-        'customerNote'    => $o->notes,
+        'customerNote'    => trim(($o->ship_method !== '' ? 'Ship via: ' . $o->ship_method : '') . "\n" . $o->notes),
         'tags'            => array('#BTAccounts'),   // Printavo: "Tags must start with a #"
         'shippingAddress' => array(
             'customerName' => $o->ship_name,
