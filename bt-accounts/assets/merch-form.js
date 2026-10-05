@@ -1,11 +1,12 @@
 /* BT Accounts — bulk / on-demand order form for merch-store accounts.
  *
- * Bulk:      one block per product, a size grid per colour. Leave blank what you don't want.
- * On demand: one line per item the customer bought — product, colour, design, size, qty.
+ * Built line by line. "Add item" opens a card: pick the garment by its
+ * picture, pick the design, then fill a size grid with one row per colour,
+ * so several colours of the same shirt and design go in at once.
  *
- * Every field sits under line[i][...] with an explicit index, so removing a
- * line can never shift its sizes onto another. Prices shown here are only a
- * running total; the server prices the order from the product list. */
+ * Fields: line[i][product], line[i][art], line[i][qty][colour][size], with an
+ * explicit index per card so removing one never shifts another's quantities.
+ * Prices here are only a running total; the server prices from the product list. */
 (function () {
   'use strict';
   var form = document.getElementById('btaMerchForm');
@@ -18,6 +19,7 @@
   products.forEach(function (p) { byId[p.id] = p; });
   var wrap = document.getElementById('btaMerchLines');
   var totalEl = document.getElementById('btaMerchTotal');
+  var addBtn = document.getElementById('btaMerchAdd');
   var idx = 0;
 
   function esc(s) {
@@ -26,171 +28,169 @@
     });
   }
   function money(n) { return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-
-  function artSelect(p, name, chosen, optional) {
-    if (!p.art.length) return '';
-    if (p.art.length === 1) {
-      return '<input type="hidden" name="' + name + '" value="' + p.art[0].id + '">'
-        + '<div class="bta-sub">Design: ' + esc(p.art[0].name) + '</div>';
-    }
-    return '<select class="bta-input" name="' + name + '"' + (optional ? '' : ' required') + '><option value="">Design…</option>'
-      + p.art.map(function (a) {
-        return '<option value="' + a.id + '"' + (String(chosen) === String(a.id) ? ' selected' : '') + '>' + esc(a.name) + '</option>';
-      }).join('') + '</select>';
-  }
-
-  /* ── Bulk ── */
-
-  function bulkRow(p, color, saved) {
-    var i = idx++;
-    var n = 'line[' + i + ']';
-    var sizes = p.sizes.map(function (s) {
-      var q = saved && saved.sizes && saved.sizes[s] ? saved.sizes[s] : '';
-      return '<label class="bta-size"><span>' + esc(s) + '</span><input type="number" min="0" inputmode="numeric" name="' + n + '[sizes][' + esc(s) + ']" value="' + esc(q) + '" data-size="' + esc(s) + '"></label>';
-    }).join('');
-    return '<div class="bta-bulkrow" data-product="' + p.id + '">'
-      + '<input type="hidden" name="' + n + '[product]" value="' + p.id + '">'
-      + '<input type="hidden" name="' + n + '[color]" value="' + esc(color) + '">'
-      + '<div class="bta-bulkrow-head"><span class="bta-colorchip">' + esc(color || 'Colour') + '</span>'
-      + (p.art.length > 1 ? artSelect(p, n + '[art]', saved ? saved.art : '', true) : (p.art.length ? '<input type="hidden" name="' + n + '[art]" value="' + p.art[0].id + '">' : ''))
-      + '<span class="bta-line-total"></span></div>'
-      + '<div class="bta-sizes">' + sizes + '</div></div>';
-  }
-
-  function renderBulk() {
-    var saved = D.lines || [];
-    wrap.innerHTML = products.map(function (p) {
-      var colors = p.colors.length ? p.colors : [''];
-      var rows = colors.map(function (c) {
-        var s = null;
-        saved.forEach(function (l) { if (l.product === p.id && l.color === c) s = l; });
-        return bulkRow(p, c, s);
-      }).join('');
-      return '<div class="bta-bulkprod">'
-        + '<div class="bta-bulkprod-head">' + (p.img ? '<img src="' + esc(p.img) + '" alt="">' : '')
-        + '<div><div class="bta-prod-name">' + esc(p.name) + '</div><div class="bta-sub">' + esc(p.brand) + priceText(p) + '</div>'
-        + (p.art.length === 1 ? '<div class="bta-sub">Design: ' + esc(p.art[0].name) + '</div>' : '') + '</div></div>'
-        + rows + '</div>';
-    }).join('');
+  function pic(src, label) {
+    return src ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '<span>' + esc(label) + '</span>';
   }
 
   function priceText(p) {
     var vals = Object.keys(p.prices).map(function (k) { return p.prices[k]; }).filter(function (v) { return v !== null; });
-    if (!vals.length) return ' · price set by the shop';
+    if (!vals.length) return 'Price set by the shop';
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    return ' · ' + money(lo) + (hi > lo ? '–' + money(hi) : '') + ' each';
+    return money(lo) + (hi > lo ? '–' + money(hi) : '') + ' each';
   }
 
-  /* ── On demand ── */
+  /* ── One item card ── */
 
-  function odLine(saved) {
-    var i = idx++;
-    var n = 'line[' + i + ']';
-    var el = document.createElement('div');
-    el.className = 'bta-odline';
-    el.dataset.n = n;
-    el.innerHTML = '<div class="bta-field"><label class="bta-label">Item</label><select class="bta-input bta-od-product" name="' + n + '[product]" required>'
-      + '<option value="">Choose…</option>' + products.map(function (p) {
-        return '<option value="' + p.id + '">' + esc(p.name) + (p.brand ? ' (' + esc(p.brand) + ')' : '') + '</option>';
-      }).join('') + '</select></div>'
-      + '<div class="bta-field bta-od-color"></div><div class="bta-field bta-od-art"></div>'
-      + '<div class="bta-field bta-od-size"></div>'
-      + '<div class="bta-field"><label class="bta-label">Qty</label><input class="bta-input bta-od-qty" type="number" min="1" value="1" inputmode="numeric"></div>'
-      + '<span class="bta-line-total"></span>'
-      + '<button type="button" class="bta-x" aria-label="Remove">&times;</button>';
-    wrap.appendChild(el);
-    if (saved && byId[saved.product]) {
-      el.querySelector('.bta-od-product').value = saved.product;
-      fillOd(el, saved);
-    }
-    return el;
+  function addCard(saved) {
+    var card = document.createElement('div');
+    card.className = 'bta-mcard';
+    card.dataset.n = 'line[' + (idx++) + ']';
+    wrap.appendChild(card);
+    if (saved && byId[saved.product]) showGrid(card, byId[saved.product], saved);
+    else showProducts(card);
+    renumber();
+    return card;
   }
 
-  function fillOd(el, saved) {
-    var p = byId[el.querySelector('.bta-od-product').value];
-    var n = el.dataset.n;
-    var c = el.querySelector('.bta-od-color'), a = el.querySelector('.bta-od-art'), s = el.querySelector('.bta-od-size');
-    if (!p) { c.innerHTML = a.innerHTML = s.innerHTML = ''; return; }
-    c.innerHTML = p.colors.length ? '<label class="bta-label">Colour</label><select class="bta-input" name="' + n + '[color]" required>'
-      + (p.colors.length > 1 ? '<option value="">Choose…</option>' : '')
-      + p.colors.map(function (x) { return '<option' + (saved && saved.color === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' : '';
-    a.innerHTML = p.art.length ? '<label class="bta-label">Design</label>' + artSelect(p, n + '[art]', saved ? saved.art : '') : '';
-    var sz = saved && saved.sizes ? Object.keys(saved.sizes)[0] : '';
-    s.innerHTML = '<label class="bta-label">Size</label><select class="bta-input bta-od-sizesel" required>'
-      + (p.sizes.length > 1 ? '<option value="">Choose…</option>' : '')
-      + p.sizes.map(function (x) { return '<option' + (x === sz ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>';
-    if (saved && sz) el.querySelector('.bta-od-qty').value = saved.sizes[sz];
+  function head(card, title, back) {
+    var n = Array.prototype.indexOf.call(wrap.children, card) + 1;
+    return '<div class="bta-mcard-head"><span class="bta-itemnum">Item ' + n + '</span>'
+      + '<span class="bta-mcard-title">' + title + '</span>'
+      + (back ? '<button type="button" class="bta-linkbtn" data-act="' + back + '">Change</button>' : '')
+      + '<button type="button" class="bta-x" data-act="remove" aria-label="Remove item">&times;</button></div>';
   }
 
-  /* The size and qty pickers write one line[i][sizes][SIZE] field on submit. */
-  function syncOd(el) {
-    var old = el.querySelector('input.bta-od-hidden');
-    if (old) old.remove();
-    var sel = el.querySelector('.bta-od-sizesel');
-    var q = parseInt(el.querySelector('.bta-od-qty').value, 10) || 0;
-    if (!sel || !sel.value || q < 1) return;
-    var h = document.createElement('input');
-    h.type = 'hidden';
-    h.className = 'bta-od-hidden';
-    h.name = el.dataset.n + '[sizes][' + sel.value + ']';
-    h.value = q;
-    el.appendChild(h);
+  /* Step 1: the garment, by picture. */
+  function showProducts(card) {
+    card.dataset.product = '';
+    card.innerHTML = head(card, 'Choose the item', '')
+      + '<div class="bta-tiles">' + products.map(function (p) {
+        return '<button type="button" class="bta-tile" data-pick-product="' + p.id + '">'
+          + '<div class="bta-tile-img">' + pic(p.img, p.brand || p.name) + '</div>'
+          + '<div class="bta-tile-name">' + esc(p.name) + '</div>'
+          + '<div class="bta-tile-sub">' + esc(p.brand) + '</div>'
+          + '<div class="bta-tile-sub">' + esc(priceText(p)) + '</div></button>';
+      }).join('') + '</div>';
+    recalc();
+  }
+
+  /* Step 2: the design. Skipped when the item has one design or none on file. */
+  function showDesigns(card, p, keep) {
+    if (p.art.length < 2) return showGrid(card, p, { art: p.art.length ? p.art[0].id : 0, qty: keep });
+    card.dataset.product = p.id;
+    card.innerHTML = head(card, esc(p.name) + ' &middot; choose the design', 'product')
+      + '<div class="bta-tiles">' + p.art.map(function (a) {
+        return '<button type="button" class="bta-tile" data-pick-art="' + a.id + '">'
+          + '<div class="bta-tile-img">' + pic(a.img, 'Design') + '</div>'
+          + '<div class="bta-tile-name">' + esc(a.name) + '</div></button>';
+      }).join('') + '</div>';
+    card._keep = keep || null;
+    recalc();
+  }
+
+  /* Step 3: one row per colour, a box per size. */
+  function showGrid(card, p, saved) {
+    var n = card.dataset.n;
+    var art = saved && saved.art ? saved.art : 0;
+    var design = null;
+    p.art.forEach(function (a) { if (String(a.id) === String(art)) design = a; });
+    var qty = (saved && saved.qty) || {};
+    var colors = p.colors.length ? p.colors : [''];
+
+    card.dataset.product = p.id;
+    card.innerHTML = head(card, esc(p.name), 'product')
+      + '<input type="hidden" name="' + n + '[product]" value="' + p.id + '">'
+      + '<input type="hidden" name="' + n + '[art]" value="' + esc(art || '') + '">'
+      + '<div class="bta-mcard-sel">'
+      + '<div class="bta-mcard-pic">' + pic(p.img, p.brand || p.name) + '</div>'
+      + '<div><div class="bta-tile-sub">' + esc(p.brand) + ' &middot; ' + esc(priceText(p)) + '</div>'
+      + (design ? '<div class="bta-mcard-design">' + (design.img ? '<img src="' + esc(design.img) + '" alt="">' : '')
+          + 'Design: <strong>' + esc(design.name) + '</strong>'
+          + (p.art.length > 1 ? ' <button type="button" class="bta-linkbtn" data-act="design">Change</button>' : '') + '</div>'
+        : '<div class="bta-tile-sub">Design: the shop will confirm it with you.</div>')
+      + '</div></div>'
+      + '<div class="bta-qtywrap"><table class="bta-qtygrid"><thead><tr><th>Colour</th>'
+      + p.sizes.map(function (s) { return '<th>' + esc(s) + '</th>'; }).join('') + '<th>Pcs</th></tr></thead><tbody>'
+      + colors.map(function (c) {
+        var row = qty[c] || {};
+        return '<tr data-color="' + esc(c) + '"><th scope="row">' + esc(c || 'Qty') + '</th>' + p.sizes.map(function (s) {
+          return '<td><input type="number" min="0" inputmode="numeric" aria-label="' + esc(c + ' ' + s) + '"'
+            + ' name="' + n + '[qty][' + esc(c) + '][' + esc(s) + ']" data-size="' + esc(s) + '" value="' + esc(row[s] || '') + '"></td>';
+        }).join('') + '<td class="bta-rowpcs"></td></tr>';
+      }).join('') + '</tbody></table></div>'
+      + '<div class="bta-mcard-foot"><span class="bta-line-total"></span></div>';
+    recalc();
+  }
+
+  function renumber() {
+    Array.prototype.forEach.call(wrap.children, function (card, i) {
+      var el = card.querySelector('.bta-itemnum');
+      if (el) el.textContent = 'Item ' + (i + 1);
+    });
   }
 
   /* ── Totals ── */
 
   function recalc() {
     var total = 0, pieces = 0, unpriced = false;
-    if (D.type === 'bulk') {
-      wrap.querySelectorAll('.bta-bulkrow').forEach(function (row) {
-        var p = byId[row.dataset.product], line = 0, n = 0;
-        row.querySelectorAll('input[data-size]').forEach(function (inp) {
+    Array.prototype.forEach.call(wrap.children, function (card) {
+      var p = byId[card.dataset.product];
+      var out = card.querySelector('.bta-line-total');
+      if (!p || !out) return;
+      var cardPcs = 0, cardTotal = 0;
+      card.querySelectorAll('.bta-qtygrid tbody tr').forEach(function (tr) {
+        var rowPcs = 0;
+        tr.querySelectorAll('input[data-size]').forEach(function (inp) {
           var q = parseInt(inp.value, 10) || 0;
           if (q < 1) return;
-          n += q;
+          rowPcs += q;
           var each = p.prices[inp.dataset.size];
-          if (each === null || each === undefined) unpriced = true; else line += each * q;
+          if (each === null || each === undefined) unpriced = true; else cardTotal += each * q;
         });
-        pieces += n; total += line;
-        row.querySelector('.bta-line-total').textContent = n ? n + ' pcs' + (line ? ' · ' + money(line) : '') : '';
+        tr.querySelector('.bta-rowpcs').textContent = rowPcs || '';
+        cardPcs += rowPcs;
       });
-    } else {
-      wrap.querySelectorAll('.bta-odline').forEach(function (el) {
-        syncOd(el);
-        var p = byId[el.querySelector('.bta-od-product').value];
-        var sel = el.querySelector('.bta-od-sizesel');
-        var q = parseInt(el.querySelector('.bta-od-qty').value, 10) || 0;
-        var out = el.querySelector('.bta-line-total');
-        if (!p || !sel || !sel.value || q < 1) { out.textContent = ''; return; }
-        var each = p.prices[sel.value];
-        pieces += q;
-        if (each === null || each === undefined) { unpriced = true; out.textContent = 'priced by shop'; }
-        else { total += each * q; out.textContent = money(each * q); }
-      });
-    }
+      pieces += cardPcs; total += cardTotal;
+      out.textContent = cardPcs ? cardPcs + ' piece' + (cardPcs === 1 ? '' : 's') + (cardTotal ? ' · ' + money(cardTotal) : '') : '';
+    });
     totalEl.innerHTML = pieces
       ? '<strong>' + pieces + ' piece' + (pieces === 1 ? '' : 's') + '</strong>' + (total ? ' · ' + money(total) : '')
         + (unpriced ? ' <span class="bta-sub">+ items the shop will price</span>' : '') + ' <span class="bta-sub">plus shipping</span>'
       : '';
   }
 
-  if (D.type === 'bulk') {
-    renderBulk();
-  } else {
-    (D.lines && D.lines.length ? D.lines : [null]).forEach(odLine);
-    document.getElementById('btaMerchAdd').addEventListener('click', function () { odLine(null); recalc(); });
-    wrap.addEventListener('change', function (e) {
-      if (e.target.classList.contains('bta-od-product')) fillOd(e.target.closest('.bta-odline'), null);
+  /* ── Events ── */
+
+  wrap.addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (!t || !wrap.contains(t)) return;
+    var card = t.closest('.bta-mcard');
+    if (t.dataset.pickProduct) return showDesigns(card, byId[t.dataset.pickProduct]);
+    if (t.dataset.pickArt) {
+      return showGrid(card, byId[card.dataset.product], { art: t.dataset.pickArt, qty: card._keep });
+    }
+    if (t.dataset.act === 'product') return showProducts(card);
+    if (t.dataset.act === 'design') return showDesigns(card, byId[card.dataset.product], gridQty(card));
+    if (t.dataset.act === 'remove') { card.remove(); renumber(); recalc(); }
+  });
+
+  /* Quantities already typed, so changing the design does not wipe them. */
+  function gridQty(card) {
+    var q = {};
+    card.querySelectorAll('.bta-qtygrid tbody tr').forEach(function (tr) {
+      var c = tr.dataset.color;
+      tr.querySelectorAll('input[data-size]').forEach(function (inp) {
+        if ((parseInt(inp.value, 10) || 0) > 0) { (q[c] = q[c] || {})[inp.dataset.size] = inp.value; }
+      });
     });
-    wrap.addEventListener('click', function (e) {
-      if (!e.target.classList.contains('bta-x')) return;
-      var lines = wrap.querySelectorAll('.bta-odline');
-      if (lines.length > 1) e.target.closest('.bta-odline').remove();
-      recalc();
-    });
+    return q;
   }
+
   wrap.addEventListener('input', recalc);
-  wrap.addEventListener('change', recalc);
-  form.addEventListener('submit', recalc);
-  recalc();
+  addBtn.addEventListener('click', function () {
+    var card = addCard(null);
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  (D.lines && D.lines.length ? D.lines : [null]).forEach(addCard);
 })();

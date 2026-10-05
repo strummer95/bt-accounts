@@ -78,6 +78,30 @@ function bta_product_in($p, $type) {
     return $p->channels === 'both' || $p->channels === $type;
 }
 
+/**
+ * The product's picture: its own image URL, or failing that BT Catalog's photo
+ * for the same style number. BT Catalog's columns are not known here, so the
+ * usual image column names are tried and anything else is ignored.
+ */
+function bta_product_image($p) {
+    if (!empty($p->image_url)) return (string) $p->image_url;
+    static $cache = array();
+    $style = trim((string) $p->style_no);
+    if ($style === '' || !function_exists('bt_cat_table')) return '';
+    if (array_key_exists($style, $cache)) return $cache[$style];
+
+    global $wpdb;
+    $t = bt_cat_table();
+    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE style_no = %s LIMIT 1", $style), ARRAY_A);
+    $url = '';
+    if ($row) {
+        foreach (array('image_url', 'image', 'img', 'thumbnail', 'thumb', 'photo', 'front_image') as $k) {
+            if (!empty($row[$k]) && preg_match('#^https?://#i', (string) $row[$k])) { $url = (string) $row[$k]; break; }
+        }
+    }
+    return $cache[$style] = $url;
+}
+
 /** Art ids a product is printed with. Empty means any art in the library. */
 function bta_product_art_ids($p) {
     return array_values(array_filter(array_map('intval', explode(',', (string) $p->art_ids))));

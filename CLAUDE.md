@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.13.2**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.13.3**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -145,6 +145,11 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   Seeded line-up (Dillon's): Gildan 5000 / 5V00L / 5400 in Black, Sport Grey, White and Valucap
   VC300A in Black, White, Khaki, Red on both; Port & Company LPC54V Black/White on-demand only.
   Prices left blank on purpose (shop sets them; blank shows "Ask" and the line comes in unpriced).
+- Order form (0.13.3, Dillon's design): no pre-made list. **Add item** → pick garment by picture
+  tile → pick design (skipped with 0–1 designs) → size grid, one row per colour. Fields
+  `line[i][product]`, `line[i][art]`, `line[i][qty][colour][size]`; each colour with a qty becomes
+  its own order line. Same builder for bulk and on demand. Pictures: `bta_product_image()` = the
+  product's image URL, else a BT Catalog photo for the same `style_no` (guessed column names).
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

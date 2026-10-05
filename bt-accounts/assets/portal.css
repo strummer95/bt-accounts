@@ -642,22 +642,56 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 
 .bta-artgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
 
-/* Bulk form: a block per product, a size grid per colour */
-.bta-bulkprod { border: 2px solid var(--bta-line); border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; background: var(--bta-lav-soft); }
-.bta-bulkprod-head { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
-.bta-bulkprod-head img { width: 64px; height: 64px; object-fit: contain; background: #fff; border-radius: 5px; border: 1px solid var(--bta-line-soft); }
-.bta-bulkrow { padding: 10px 0; border-top: 1px solid var(--bta-line-soft); }
-.bta-bulkrow-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-.bta-bulkrow-head select.bta-input { width: auto; min-width: 180px; padding: 6px 10px; font-size: 15px; }
-.bta-line-total { margin-left: auto; font-size: 15px; font-weight: 700; color: var(--bta-navy); }
-
-/* On-demand form: one line per item */
-.bta-odline {
-  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 80px auto auto; gap: 0 12px; align-items: end;
-  padding: 10px 0; border-bottom: 1px solid var(--bta-line-soft);
+/* Order form: one card per item — garment, design, then a size grid per colour */
+.bta-mcard { border: 2px solid var(--bta-line); border-radius: 8px; padding: 14px 18px 16px; margin-bottom: 16px; background: var(--bta-lav-soft); }
+.bta-mcard-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bta-mcard-title { font-family: 'Oswald', sans-serif; font-size: 17px; font-weight: 600; color: var(--bta-navy); flex: 1; }
+.bta-linkbtn {
+  background: none; border: none; padding: 0; cursor: pointer; font-size: 14px; font-weight: 700;
+  color: var(--bta-navy); text-decoration: underline;
 }
-.bta-odline .bta-line-total { margin: 0 0 30px; white-space: nowrap; }
-.bta-odline .bta-x { margin-bottom: 28px; }
+.bta-linkbtn:hover { color: var(--bta-pink); }
+
+.bta-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.bta-tile {
+  display: flex; flex-direction: column; gap: 3px; text-align: left; cursor: pointer;
+  background: #fff; border: 2px solid var(--bta-line); border-radius: 8px; padding: 0 0 10px; overflow: hidden;
+  font-family: Tahoma, sans-serif; transition: border-color .15s, box-shadow .15s;
+}
+.bta-tile:hover, .bta-tile:focus-visible { border-color: var(--bta-pink); box-shadow: 0 4px 14px rgba(229, 53, 171, .18); outline: none; }
+.bta-tile-img, .bta-mcard-pic {
+  aspect-ratio: 1; background: var(--bta-lav); display: flex; align-items: center; justify-content: center;
+  font-family: 'Oswald', sans-serif; font-size: 15px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--bta-muted); text-align: center; padding: 6px;
+}
+.bta-tile-img img, .bta-mcard-pic img { width: 100%; height: 100%; object-fit: contain; }
+.bta-tile-name { padding: 6px 10px 0; font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; color: var(--bta-navy); line-height: 1.25; }
+.bta-tile-sub { padding: 0 10px; font-size: 13px; color: var(--bta-muted); }
+.bta-mcard-sel .bta-tile-sub { padding: 0; font-size: 14px; }
+
+.bta-mcard-sel { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.bta-mcard-pic { width: 84px; flex: 0 0 84px; border-radius: 6px; font-size: 12px; }
+.bta-mcard-design { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 15px; }
+.bta-mcard-design img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; border: 1px solid var(--bta-line-soft); }
+
+.bta-qtywrap { overflow-x: auto; background: #fff; border: 1px solid var(--bta-line); border-radius: 6px; }
+.bta-qtygrid { border-collapse: collapse; width: 100%; font-size: 15px; }
+.bta-qtygrid th {
+  font-family: 'Oswald', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--bta-muted); padding: 8px 6px; text-align: center; white-space: nowrap;
+}
+.bta-qtygrid tbody th { text-align: left; color: var(--bta-navy); font-size: 14px; padding-left: 12px; }
+.bta-qtygrid td { padding: 5px 4px; border-top: 1px solid var(--bta-line-soft); text-align: center; }
+.bta-qtygrid tbody th { border-top: 1px solid var(--bta-line-soft); }
+.bta-qtygrid input {
+  width: 56px; text-align: center; font-size: 16px; padding: 7px 2px;
+  border: 2px solid var(--bta-line); border-radius: 5px; background: #fff;
+}
+.bta-qtygrid input:focus { outline: none; border-color: var(--bta-navy); }
+.bta-rowpcs { font-weight: 700; color: var(--bta-navy); min-width: 40px; }
+.bta-mcard-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.bta-line-total { font-size: 15px; font-weight: 700; color: var(--bta-navy); }
+#btaMerchAdd { margin-top: 2px; }
 
 /* Money */
 .bta-dl-money dd { text-align: right; }
@@ -672,8 +706,9 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 .bta-stat strong { display: block; font-family: 'Oswald', sans-serif; font-size: 34px; color: var(--bta-navy); line-height: 1.2; }
 .bta-stat em { font-style: normal; font-size: 14px; color: var(--bta-muted); }
 
-@media (max-width: 760px) {
-  .bta-odline { grid-template-columns: 1fr 1fr; padding: 14px 0; }
-  .bta-odline .bta-field:first-child { grid-column: 1 / -1; }
-  .bta-odline .bta-line-total, .bta-odline .bta-x { margin: 0; }
+@media (max-width: 640px) {
+  .bta-tiles { grid-template-columns: repeat(2, 1fr); }
+  .bta-mcard { padding: 12px; }
+  .bta-qtygrid input { width: 48px; }
 }
+

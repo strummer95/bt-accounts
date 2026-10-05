@@ -132,7 +132,7 @@ function bta_merch_products($account) {
     foreach ($products as $p) {
         $arts = bta_product_art_choices($p, $library);
         echo '<div class="bta-prod">';
-        echo '<div class="bta-prod-img">' . ($p->image_url ? '<img src="' . esc_url($p->image_url) . '" alt="" loading="lazy">' : '<span>' . esc_html(bta_decorations()[$p->decoration] ?? '') . '</span>') . '</div>';
+        echo '<div class="bta-prod-img">' . (bta_product_image($p) ? '<img src="' . esc_url(bta_product_image($p)) . '" alt="" loading="lazy">' : '<span>' . esc_html(trim($p->brand . ' ' . $p->style_no)) . '</span>') . '</div>';
         echo '<div class="bta-prod-body">';
         echo '<div class="bta-prod-name">' . esc_html($p->name) . '</div>';
         $ch  = bta_product_channels();
@@ -254,7 +254,7 @@ function bta_merch_form_products($account, $type) {
             'name'   => (string) $p->name,
             'brand'  => trim($p->brand . ' ' . $p->style_no),
             'colors' => bta_product_colors($p),
-            'img'    => (string) $p->image_url,
+            'img'    => bta_product_image($p),
             'sizes'  => bta_product_sizes($p),
             'prices' => $prices,
             'art'    => $arts,
@@ -299,9 +299,11 @@ function bta_merch_order_form($user, $account, $type, $errors, $posted) {
     }
 
     echo '<div class="bta-card"><h2 class="bta-h2">Items</h2>';
-    echo '<p class="bta-hint">' . ($bulk ? 'Leave anything you do not want blank.' : 'Add a line for each item the customer bought.') . '</p>';
+    echo '<p class="bta-hint">' . ($bulk
+        ? 'Add each item: pick the garment, then the design, then how many of each size in each colour.'
+        : 'Add each item the customer bought: the garment, the design, then the colour and size.') . '</p>';
     echo '<div id="btaMerchLines"></div>';
-    if (!$bulk) echo '<button type="button" class="bta-btn-ghost" id="btaMerchAdd">+ Add an item</button>';
+    echo '<button type="button" class="bta-btn-ghost" id="btaMerchAdd">+ Add item</button>';
     echo '</div>';
 
     echo '<div class="bta-card"><h2 class="bta-h2">' . ($bulk ? 'Ship to' : 'Ship to the customer') . '</h2><div class="bta-grid">';
@@ -336,13 +338,17 @@ function bta_merch_order_form($user, $account, $type, $errors, $posted) {
     if (isset($posted['line']) && is_array($posted['line'])) {
         foreach ($posted['line'] as $ln) {
             if (!is_array($ln)) continue;
-            $sizes = array();
-            if (isset($ln['sizes']) && is_array($ln['sizes'])) foreach ($ln['sizes'] as $s => $q) if (is_scalar($q) && (int) $q > 0) $sizes[(string) $s] = (int) $q;
+            $qty = array();
+            if (isset($ln['qty']) && is_array($ln['qty'])) {
+                foreach ($ln['qty'] as $c => $row) {
+                    if (!is_array($row)) continue;
+                    foreach ($row as $sz => $q) if (is_scalar($q) && (int) $q > 0) $qty[sanitize_text_field($c)][sanitize_text_field($sz)] = (int) $q;
+                }
+            }
             $lines[] = array(
                 'product' => isset($ln['product']) ? (int) $ln['product'] : 0,
-                'color'   => isset($ln['color']) && is_scalar($ln['color']) ? sanitize_text_field($ln['color']) : '',
-                'art'     => isset($ln['art']) ? (int) $ln['art'] : 0,
-                'sizes'   => $sizes,
+                'art'     => isset($ln['art']) && is_scalar($ln['art']) ? (int) $ln['art'] : 0,
+                'qty'     => (object) $qty,
             );
         }
     }
@@ -408,34 +414,35 @@ function bta_handle_merch_submit($user, $account, $type) {
     $library = bta_library_by_id($account->id);
     $lines   = array();
     $posted  = isset($_POST['line']) && is_array($_POST['line']) ? wp_unslash($_POST['line']) : array();
+    // One card on the form is one garment + design, with a row of sizes per
+    // colour. Each colour with a quantity becomes its own order line.
     foreach ($posted as $ln) {
         if (!is_array($ln)) continue;
         $p = bta_get_product(isset($ln['product']) ? (int) $ln['product'] : 0);
         if (!$p || (int) $p->account_id !== (int) $account->id || $p->status !== 'active' || !bta_product_in($p, $type)) continue;
 
-        $allowed = bta_product_sizes($p);
-        $sizes = array();
-        if (isset($ln['sizes']) && is_array($ln['sizes'])) {
-            foreach ($ln['sizes'] as $s => $q) {
-                $q = is_scalar($q) ? (int) $q : 0;
-                if ($q > 0 && in_array((string) $s, $allowed, true)) $sizes[(string) $s] = min($q, 100000);
-            }
-        }
-        if (!$sizes) continue;
-
-        $colors = bta_product_colors($p);
-        $color  = isset($ln['color']) && is_scalar($ln['color']) ? sanitize_text_field($ln['color']) : '';
-        if ($colors && !in_array($color, $colors, true)) {
-            if (count($colors) === 1) $color = $colors[0];
-            else { $errors[] = 'Pick the colour for ' . $p->name . '.'; continue; }
-        }
-
         $choices = bta_product_art_choices($p, $library);
-        $art = isset($ln['art']) ? (int) $ln['art'] : 0;
+        $art = isset($ln['art']) && is_scalar($ln['art']) ? (int) $ln['art'] : 0;
         if (!isset($choices[$art])) $art = count($choices) === 1 ? (int) key($choices) : 0;
         if (!$art && count($choices) > 1) { $errors[] = 'Pick the design for ' . $p->name . '.'; continue; }
 
-        $lines[] = array('product' => $p, 'color' => $color, 'art_id' => $art, 'sizes' => $sizes);
+        $allowed = bta_product_sizes($p);
+        $colors  = bta_product_colors($p);
+        $found   = 0;
+        $grid    = isset($ln['qty']) && is_array($ln['qty']) ? $ln['qty'] : array();
+        foreach ($grid as $color => $row) {
+            $color = (string) $color;
+            if (!is_array($row) || ($colors ? !in_array($color, $colors, true) : $color !== '')) continue;
+            $sizes = array();
+            foreach ($row as $s => $q) {
+                $q = is_scalar($q) ? (int) $q : 0;
+                if ($q > 0 && in_array((string) $s, $allowed, true)) $sizes[(string) $s] = min($q, 100000);
+            }
+            if (!$sizes) continue;
+            $lines[] = array('product' => $p, 'color' => $color, 'art_id' => $art, 'sizes' => $sizes);
+            $found++;
+        }
+        if (!$found) $errors[] = 'Add quantities for ' . $p->name . ', or remove it.';
     }
     if (!$lines) $errors[] = 'Add at least one item with a quantity.';
 
