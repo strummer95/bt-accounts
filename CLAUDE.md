@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.11.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -54,7 +54,8 @@ the order model · `includes/admin.php` and `admin-orders.php` shop-side managem
 `includes/portal.php` the customer-facing portal shell · `portal-orders.php` order entry
 and list · `portal-quote.php` the account quoter · `portal-print.php` printable work order ·
 `includes/notify.php` order notification emails · `includes/pricing.php` ·
-`includes/staff-orders.php` shop staff order handling (see below) ·
+`includes/staff-orders.php` shop staff order handling (see below) · `includes/printavo.php`
+Printavo quotes (see below) ·
 `includes/admin-diagnostics.php` · `assets/` order-form.js, quote.js, portal.css, print.css
 
 This plugin has its **own auth system**, separate from BT Portal's `bt_portal_user` roles.
@@ -85,6 +86,27 @@ nonce.
 - Order addresses (0.11.0): `/employees/accounts/cin-1001` via BT Portal's `btpSetItem` /
   `btpCurrentItem` (0.53.0+). The address is the source of truth in `btaStaffLoad()`.
   `GET /staff/orders/number/{number}` resolves it, case-insensitive.
+
+## Printavo (0.12.0)
+
+Every submitted order is queued (WP-Cron) and created in Printavo as a **quote** on the account's
+Printavo contact (Cintas → Sasha Velez, set per account, ids cached in `bta_pv_acct_{id}`). The shop
+reviews it and sends it for approval by hand; the plugin never approves, invoices or emails from
+Printavo. Settings and Test connection are on the main BT Accounts page; the staff screen shows the
+quote # with Try again / Send again. Failures email the shop and never touch the order.
+
+- API v2 GraphQL at `www.printavo.com/api/v2`, headers `email` + `token`. Premium plan only.
+  10 requests / 5 s, so calls are spaced 0.6 s.
+- Printavo's docs site is blocked from the container, so field names are not hard-coded:
+  `bta_pv_type()` introspects and `bta_pv_fit()` drops any field Printavo lacks. Alternate names
+  (`contactId` beside `contact`, `zip` beside `zipCode`) are offered together on purpose. If
+  introspection is off it falls back to the documented names (`bta_pv_blind_sig`). Everything is
+  also in the production note as text. Verify against the first real quote and tighten then.
+- Order lines now have `locations` (JSON list of placement / art_id / emb) plus `unit_price` and
+  `price_note`. `placement` and `art_id` still hold a summary and the first logo for old readers.
+  Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.
+- Order form fields are `item[i][...]` with explicit indexes; the old `item_x[]` arrays shifted
+  sizes onto the wrong line when one was removed.
 
 ## Sign-in diagnostics
 

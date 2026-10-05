@@ -4,10 +4,12 @@
  *
  * v1: accounts, portal users, sessions, login attempts.
  * Order tables land in Phase 4 as v2 so the order shape can be settled first.
+ * v3: print/embroidery locations and a price per item line, and the Printavo
+ *     link on each order. dbDelta adds the new columns to existing tables.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 2);
+define('BTA_SCHEMA_VERSION', 3);
 
 function bta_table($name) {
     global $wpdb;
@@ -110,6 +112,13 @@ function bta_install_schema() {
         notes MEDIUMTEXT NULL,
         status VARCHAR(60) NOT NULL DEFAULT 'Submitted',
         job_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        printavo_state VARCHAR(20) NOT NULL DEFAULT '',
+        printavo_id VARCHAR(64) NOT NULL DEFAULT '',
+        printavo_number VARCHAR(40) NOT NULL DEFAULT '',
+        printavo_url TEXT NULL,
+        printavo_error TEXT NULL,
+        printavo_log MEDIUMTEXT NULL,
+        printavo_at DATETIME NULL,
         submitted_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
         updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -119,6 +128,7 @@ function bta_install_schema() {
         KEY user_id (user_id),
         KEY status (status),
         KEY job_id (job_id),
+        KEY printavo_state (printavo_state),
         KEY acct_created (account_id, created_at)
     ) $charset;");
 
@@ -134,8 +144,11 @@ function bta_install_schema() {
         sizes MEDIUMTEXT NULL,
         qty INT NOT NULL DEFAULT 0,
         decoration VARCHAR(40) NOT NULL DEFAULT '',
-        placement VARCHAR(120) NOT NULL DEFAULT '',
+        placement VARCHAR(255) NOT NULL DEFAULT '',
         art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        locations MEDIUMTEXT NULL,
+        unit_price DECIMAL(10,2) NULL,
+        price_note VARCHAR(255) NOT NULL DEFAULT '',
         notes TEXT NULL,
         PRIMARY KEY (id),
         KEY order_id (order_id)

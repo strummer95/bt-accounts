@@ -289,7 +289,7 @@ function bta_mail_order_html($order, $account, $user, $items, $art, $audience = 
               . '<td style="' . $td . '">' . ($parts ? implode(', ', $parts) : '—') . '</td>'
               . '<td style="' . $td . ';text-align:right"><strong>' . (int) $it->qty . '</strong></td>'
               . '<td style="' . $td . '">' . $decl . '</td>'
-              . '<td style="' . $td . '">' . esc_html(isset($artby[(int) $it->art_id]) ? $artby[(int) $it->art_id]->label : '—') . '</td>'
+              . '<td style="' . $td . '">' . esc_html(bta_item_art_text($it, $artby) !== '' ? bta_item_art_text($it, $artby) : '—') . '</td>'
               . '</tr>';
 
         if ($it->notes !== '') {

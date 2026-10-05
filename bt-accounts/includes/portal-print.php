@@ -171,7 +171,7 @@ function bta_render_order_print($order_id) {
           <?php echo esc_html(isset($dec[$it->decoration]) ? $dec[$it->decoration] : $it->decoration); ?>
           <?php if ($it->placement !== '') : ?><div class="btp-sub"><?php echo esc_html($it->placement); ?></div><?php endif; ?>
         </td>
-        <td><?php echo esc_html(isset($artby[(int) $it->art_id]) ? $artby[(int) $it->art_id]->label : '—'); ?></td>
+        <td><?php echo esc_html(bta_item_art_text($it, $artby) !== '' ? bta_item_art_text($it, $artby) : '—'); ?></td>
       </tr>
       <?php if ($it->notes !== '') : ?>
       <tr class="btp-noterow"><td></td><td colspan="6"><span class="btp-notelabel">Note</span> <?php echo esc_html($it->notes); ?></td></tr>

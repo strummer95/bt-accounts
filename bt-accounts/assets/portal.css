@@ -509,6 +509,18 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 .bta-acitem:last-child { border-bottom: none; }
 .bta-acitem:hover { background: var(--bta-lav); }
 
+/* Print / embroidery locations under each item */
+.bta-locs { margin-top: 4px; }
+.bta-loc {
+  display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0 14px; align-items: end;
+  padding: 10px 0; border-bottom: 1px solid var(--bta-line-soft);
+}
+.bta-loc .bta-loc-emb[hidden] { display: none; }
+.bta-addloc { margin-top: 10px; }
+.bta-est { margin: 12px 0 4px; font-size: 15px; }
+.bta-est:empty { display: none; }
+.bta-est-total { flex: 1; font-size: 16px; }
+
 .bta-submitbar {
   display: flex; gap: 12px; align-items: center; justify-content: flex-end;
   padding: 4px 0 8px; flex-wrap: wrap;
@@ -516,7 +528,9 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 
 @media (max-width: 640px) {
   .bta-artrow { grid-template-columns: 1fr auto; }
+  .bta-loc { grid-template-columns: 1fr auto; }
   .bta-itemrow { padding: 14px; }
+  .bta-est-total { flex-basis: 100%; }
   .bta-log-date { min-width: 0; width: 100%; }
   .bta-submitbar { justify-content: stretch; }
   .bta-submitbar .bta-btn-inline { flex: 1; }

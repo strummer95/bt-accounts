@@ -1,5 +1,6 @@
 /* BT Accounts — new order form.
-   Line items, size grids, catalogue autocomplete, art-label wiring.
+   Line items, size grids, print/embroidery locations, live estimate,
+   catalogue autocomplete, art-label wiring.
    Vanilla JS, no dependencies, all ids/classes bta- prefixed. */
 (function () {
   'use strict';
@@ -54,7 +55,7 @@
     sizes.forEach(function (s) {
       html += '<label class="bta-size"><span>' + esc(s) + '</span>' +
               '<input type="number" min="0" step="1" inputmode="numeric" ' +
-              'name="item_sizes[' + i + '][' + esc(s) + ']" placeholder="0"></label>';
+              'name="item[' + i + '][sizes][' + esc(s) + ']" placeholder="0"></label>';
     });
     html += '</div><div class="bta-sizetotal">Total: <strong data-total="' + i + '">0</strong></div>';
     return html;
@@ -70,7 +71,114 @@
       });
       out.textContent = n;
       row.classList.toggle('bta-row-empty', n === 0);
+      estimate(row);
     });
+  }
+
+  function rowQty(row) {
+    var n = 0;
+    row.querySelectorAll('.bta-sizes input').forEach(function (inp) { n += parseInt(inp.value, 10) || 0; });
+    return n;
+  }
+
+  /* ── locations ───────────────────────────────────────────────────────── */
+
+  function opts(list, cur) {
+    return list.map(function (o) {
+      var v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
+      return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(t) + '</option>';
+    }).join('');
+  }
+
+  function isEmb(row) { return row.querySelector('.bta-deco').value === 'embroidery'; }
+
+  function addLocation(row, i) {
+    var wrap = row.querySelector('.bta-locs');
+    var k = parseInt(wrap.getAttribute('data-next') || '0', 10);
+    wrap.setAttribute('data-next', k + 1);
+    var used = [];
+    wrap.querySelectorAll('.bta-loc-place').forEach(function (s) { used.push(s.value); });
+    var pick = CFG.placements.filter(function (p) { return used.indexOf(p) === -1; })[0] || CFG.placements[0];
+    var embs = Object.keys(CFG.embTypes).map(function (key) { return [key, CFG.embTypes[key]]; });
+    var base = 'item[' + i + '][loc][' + k + ']';
+
+    var loc = el('div', 'bta-loc');
+    loc.innerHTML =
+      '<div class="bta-field"><label class="bta-label">Location</label>' +
+        '<select class="bta-input bta-loc-place" name="' + base + '[placement]">' + opts(CFG.placements, pick) + '</select></div>' +
+      '<div class="bta-field"><label class="bta-label">Logo</label>' +
+        '<select class="bta-input bta-art-select" name="' + base + '[art]"></select></div>' +
+      '<div class="bta-field bta-loc-emb"' + (isEmb(row) ? '' : ' hidden') + '><label class="bta-label">Embroidery</label>' +
+        '<select class="bta-input bta-emb" name="' + base + '[emb]">' + opts(embs, 'logo') + '</select></div>' +
+      '<button type="button" class="bta-x" aria-label="Remove location">&times;</button>';
+    wrap.appendChild(loc);
+
+    loc.querySelector('.bta-x').addEventListener('click', function () {
+      if (wrap.children.length === 1) return;     // a line always has one location
+      loc.remove();
+      estimate(row);
+    });
+    refreshArtSelects();
+    estimate(row);
+  }
+
+  /* ── live estimate ───────────────────────────────────────────────────────
+     Same endpoint as the Quote tab. Print prices the line on its number of
+     locations; embroidery prices each location and adds them up. */
+
+  function money(n) { return '$' + Number(n).toFixed(2); }
+
+  function quote(params) {
+    var qs = new URLSearchParams(params).toString();
+    return fetch(CFG.quoteUrl + '?' + qs, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  function estimate(row) {
+    var out = row.querySelector('.bta-est');
+    if (!out || !CFG.quoteUrl) return;
+    clearTimeout(row._estTimer);
+    row._estTimer = setTimeout(function () {
+      var qty = rowQty(row);
+      var locs = row.querySelectorAll('.bta-loc');
+      row._estUnit = null;
+      if (!qty || !locs.length) { out.textContent = ''; orderTotal(); return; }
+      var mine = row._estSeq = (row._estSeq || 0) + 1;
+      var calls;
+      if (isEmb(row)) {
+        calls = Array.prototype.map.call(locs, function (l) {
+          return quote({ qty: qty, method: 'embroidery', embType: l.querySelector('.bta-emb').value });
+        });
+      } else {
+        calls = [quote({ qty: qty, method: 'print', locations: Math.min(3, locs.length) })];
+      }
+      Promise.all(calls).then(function (res) {
+        if (mine !== row._estSeq) return;
+        var unit = 0, byShop = false;
+        res.forEach(function (d) {
+          if (!d || d.quote || d.perShirt == null) byShop = true; else unit += Number(d.perShirt);
+        });
+        if (byShop) {
+          out.innerHTML = '<strong>Estimate:</strong> priced by the shop at this quantity';
+        } else {
+          row._estUnit = unit;
+          out.innerHTML = '<strong>Estimate:</strong> ' + money(unit) + ' each &middot; ' + money(unit * qty)
+            + (!isEmb(row) && locs.length > 3 ? ' <span class="bta-sub">+ ' + (locs.length - 3) + ' more locations priced by the shop</span>' : '');
+        }
+        orderTotal();
+      });
+    }, 250);
+  }
+
+  function orderTotal() {
+    var box = document.getElementById('btaOrderEst');
+    if (!box) return;
+    var sum = 0, any = false;
+    itemRows.querySelectorAll('.bta-itemrow').forEach(function (r) {
+      if (r._estUnit != null) { sum += r._estUnit * rowQty(r); any = true; }
+    });
+    box.innerHTML = any ? 'Estimated decoration total: <strong>' + money(sum) + '</strong>' : '';
   }
 
   /* ── item row ────────────────────────────────────────────────────────── */
@@ -79,13 +187,10 @@
     var i = itemIdx++;
     var row = el('div', 'bta-itemrow bta-row-empty');
 
-    var placements = CFG.placements.map(function (p) {
-      return '<option value="' + esc(p) + '">' + esc(p) + '</option>';
-    }).join('');
-
     var decs = Object.keys(CFG.decorations).map(function (k) {
       return '<option value="' + esc(k) + '">' + esc(CFG.decorations[k]) + '</option>';
     }).join('');
+    var base = 'item[' + i + ']';
 
     row.innerHTML =
       '<div class="bta-itemhead"><span class="bta-itemnum">Item ' + (i + 1) + '</span>' +
@@ -94,48 +199,58 @@
       '<div class="bta-grid">' +
         '<div class="bta-field bta-ac">' +
           '<label class="bta-label">Style number or name</label>' +
-          '<input class="bta-input bta-style" name="item_style[]" autocomplete="off" placeholder="e.g. 5000">' +
+          '<input class="bta-input bta-style" name="' + base + '[style]" autocomplete="off" placeholder="e.g. 5000">' +
           '<div class="bta-aclist" hidden></div>' +
         '</div>' +
         '<div class="bta-field">' +
           '<label class="bta-label">Description</label>' +
-          '<input class="bta-input bta-name" name="item_name[]" placeholder="Filled in automatically">' +
+          '<input class="bta-input bta-name" name="' + base + '[name]" placeholder="Filled in automatically">' +
         '</div>' +
         '<div class="bta-field">' +
           '<label class="bta-label">Colour</label>' +
-          '<input class="bta-input bta-color" name="item_color[]" list="bta-colors-' + i + '" placeholder="e.g. Black">' +
+          '<input class="bta-input bta-color" name="' + base + '[color]" list="bta-colors-' + i + '" placeholder="e.g. Black">' +
           '<datalist id="bta-colors-' + i + '"></datalist>' +
         '</div>' +
       '</div>' +
 
-      '<input type="hidden" name="item_catalog_id[]" class="bta-cid" value="0">' +
-      '<input type="hidden" name="item_brand[]" class="bta-brand" value="">' +
+      '<input type="hidden" name="' + base + '[catalog_id]" class="bta-cid" value="0">' +
+      '<input type="hidden" name="' + base + '[brand]" class="bta-brand" value="">' +
 
       '<label class="bta-label" style="margin-top:14px">Sizes and quantities</label>' +
       sizeGrid(i, CFG.sizes) +
 
       '<div class="bta-grid" style="margin-top:14px">' +
         '<div class="bta-field"><label class="bta-label">Decoration</label>' +
-          '<select class="bta-input" name="item_decoration[]">' + decs + '</select></div>' +
-        '<div class="bta-field"><label class="bta-label">Placement</label>' +
-          '<select class="bta-input" name="item_placement[]">' + placements + '</select></div>' +
-        '<div class="bta-field"><label class="bta-label">Logo</label>' +
-          '<select class="bta-input bta-art-select" name="item_art[]"></select></div>' +
+          '<select class="bta-input bta-deco" name="' + base + '[decoration]">' + decs + '</select></div>' +
       '</div>' +
+      '<div class="bta-locs"></div>' +
+      '<button type="button" class="bta-btn-ghost bta-addloc">+ Add another location</button>' +
+      '<div class="bta-est" aria-live="polite"></div>' +
 
       '<div class="bta-field" style="margin-top:4px">' +
         '<label class="bta-label">Notes for this item</label>' +
-        '<input class="bta-input" name="item_notes[]" placeholder="Optional">' +
+        '<input class="bta-input" name="' + base + '[notes]" placeholder="Optional">' +
       '</div>';
 
     itemRows.appendChild(row);
     wireTotals(row, i);
     wireAutocomplete(row, i);
+    addLocation(row, i);
+
+    row.querySelector('.bta-addloc').addEventListener('click', function () { addLocation(row, i); });
+    row.querySelector('.bta-deco').addEventListener('change', function () {
+      row.querySelectorAll('.bta-loc-emb').forEach(function (f) { f.hidden = !isEmb(row); });
+      estimate(row);
+    });
+    row.querySelector('.bta-locs').addEventListener('change', function (e) {
+      if (e.target.classList.contains('bta-emb')) estimate(row);
+    });
 
     row.querySelector('.bta-x').addEventListener('click', function () {
       if (itemRows.children.length === 1) return;   // never remove the last row
       row.remove();
       renumber();
+      orderTotal();
     });
 
     refreshArtSelects();

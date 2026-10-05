@@ -53,6 +53,7 @@ function bta_handle_admin_post() {
     check_admin_referer('bta_admin');
 
     $action = sanitize_key($_POST['bta_action']);
+    bta_pv_handle_admin_post($action);
 
     if ($action === 'save_settings') {
         update_option('bta_shop_logo', esc_url_raw(wp_unslash(isset($_POST['shop_logo']) ? $_POST['shop_logo'] : '')));
@@ -179,6 +180,9 @@ function bta_admin_status_panel() {
     echo '<tr><td>Database tables</td><td>' . ($tables_ok ? $yes : $no . ' &mdash; deactivate and reactivate the plugin to rebuild them') . '</td></tr>';
     echo '<tr><td>Portal URL</td><td>' . ($route_ok ? $yes : $no . ' &mdash; go to <a href="' . esc_url(admin_url('options-permalink.php')) . '">Settings &rarr; Permalinks</a> and press Save to flush the rewrite rules')
         . ' &nbsp;<a href="' . esc_url(home_url('/' . bta_portal_slug() . '/')) . '" target="_blank" rel="noopener">' . esc_html(home_url('/' . bta_portal_slug() . '/')) . '</a></td></tr>';
+    $pv_test = get_option('bta_pv_last_test', array());
+    echo '<tr><td>Printavo</td><td>' . (!bta_pv_configured() ? '<span style="color:#666">not connected &mdash; see Printavo below</span>'
+        : (!empty($pv_test['ok']) ? $yes . ' &nbsp;<span style="color:#666">orders go in as quotes</span>' : $no . ' &mdash; ' . esc_html(isset($pv_test['msg']) ? $pv_test['msg'] : 'press Test connection under Printavo below'))) . '</td></tr>';
     echo '<tr><td>Pricing engine (BT Quote)</td><td>' . ($engine_ok ? $yes . ' &nbsp;<span style="color:#666">supplied-item rates available</span>' : $no . ' &mdash; BT Quote is not active, so quoting will not work') . '</td></tr>';
     echo '</tbody></table>';
 
@@ -257,6 +261,8 @@ function bta_admin_accounts_list() {
     echo '<span class="description" style="margin-left:10px">Sends to the address above so you can prove SMTP works before a real order arrives.</span>';
     echo '</form>';
 
+    bta_pv_admin_section();
+
     echo '<h2 style="margin-top:32px">Add an account</h2>';
     echo '<form method="post" style="max-width:520px"><table class="form-table">';
     wp_nonce_field('bta_admin');
@@ -302,6 +308,8 @@ function bta_admin_account_editor($a) {
     echo '<option value="disabled"' . selected($a->status, 'disabled', false) . '>Disabled</option>';
     echo '</select><p class="description">Disabling signs out everyone on this account immediately.</p></td></tr>';
     echo '</table><p><button class="button button-primary">Save</button></p></form>';
+
+    bta_pv_account_section($a);
 
     // Logins
     echo '<h2 style="margin-top:32px">Logins</h2>';

@@ -145,6 +145,77 @@ function bta_item_sizes($item) {
     return is_array($s) ? $s : array();
 }
 
+/** Embroidery types the pricing engine knows, in the order the form offers them. */
+function bta_emb_types() {
+    return array('logo' => 'Logo', 'text' => 'Text', 'hard' => 'Hard to handle');
+}
+
+/**
+ * An item's decoration locations: a list of placement / art_id / emb.
+ * Lines from before 0.12.0 had one placement and one logo; they read back as a
+ * single location so everything downstream handles one shape.
+ */
+function bta_item_locations($item) {
+    $l = isset($item->locations) ? json_decode((string) $item->locations, true) : null;
+    if (is_array($l) && $l) return $l;
+    if ((string) $item->placement === '' && !(int) $item->art_id) return array();
+    return array(array('placement' => (string) $item->placement, 'art_id' => (int) $item->art_id, 'emb' => ''));
+}
+
+/** One line's locations as text, e.g. "Left Chest (Logo), Full Back". */
+function bta_locations_text($locs, $decoration) {
+    $emb   = bta_emb_types();
+    $parts = array();
+    foreach ($locs as $l) {
+        $p = (string) $l['placement'];
+        if ($decoration === 'embroidery' && !empty($l['emb']) && isset($emb[$l['emb']])) $p .= ' (' . $emb[$l['emb']] . ')';
+        if ($p !== '') $parts[] = $p;
+    }
+    return implode(', ', $parts);
+}
+
+/** Every logo used on one line, by name. $artby is art id => art row. */
+function bta_item_art_text($item, $artby) {
+    $out = array();
+    foreach (bta_item_locations($item) as $l) {
+        $id = (int) $l['art_id'];
+        if ($id && isset($artby[$id])) $out[$artby[$id]->label] = true;
+    }
+    return implode(', ', array_keys($out));
+}
+
+/**
+ * Price one order line on the account's rates: array(per piece or null, note).
+ * Same engine and arguments as the Quote tab, so the quote in Printavo carries
+ * the number the account saw. Null means the shop prices it by hand.
+ */
+function bta_price_order_line($account_id, $qty, $decoration, $locs) {
+    if ($qty < 1 || !$locs) return array(null, '');
+
+    if ($decoration === 'embroidery') {
+        // Each embroidered location is its own run of stitches, so they add up.
+        $unit = 0.0;
+        foreach ($locs as $l) {
+            $r = bta_price_for_account($account_id, array(
+                'qty' => $qty, 'method' => 'embroidery', 'embType' => !empty($l['emb']) ? $l['emb'] : 'logo',
+            ));
+            if (is_wp_error($r)) return array(null, $r->get_error_message());
+            if (!empty($r['quote']) || !isset($r['perShirt'])) return array(null, 'Embroidery at this quantity is priced by the shop.');
+            $unit += (float) $r['perShirt'];
+        }
+        return array(round($unit, 2), '');
+    }
+
+    $n = count($locs);
+    $r = bta_price_for_account($account_id, array('qty' => $qty, 'method' => 'print', 'locations' => min(3, $n)));
+    if (is_wp_error($r)) return array(null, $r->get_error_message());
+    if (!empty($r['quote']) || !isset($r['perShirt'])) {
+        return array(null, !empty($r['message']) ? (string) $r['message'] : 'Priced by the shop.');
+    }
+    $extra = $n - 3;
+    return array(round((float) $r['perShirt'], 2), $extra > 0 ? 'Price covers 3 locations; the other ' . $extra . ' are priced by the shop.' : '');
+}
+
 function bta_order_qty($order_id) {
     global $wpdb;
     return (int) $wpdb->get_var($wpdb->prepare(
@@ -214,7 +285,18 @@ function bta_create_order($account, $user, $data, $items, $art = array()) {
 
     $i = 0;
     foreach ($items as $it) {
-        $wpdb->insert(bta_table('order_items'), array(
+        // Locations name their logo by label on the form; store the art id.
+        $locs = array();
+        foreach ($it['locations'] as $l) {
+            $locs[] = array(
+                'placement' => $l['placement'],
+                'art_id'    => isset($art_ids[$l['art_label']]) ? $art_ids[$l['art_label']] : 0,
+                'emb'       => $l['emb'],
+            );
+        }
+        list($unit, $price_note) = bta_price_order_line($account->id, (int) $it['qty'], $it['decoration'], $locs);
+
+        $row = array(
             'order_id'   => $order_id,
             'sort_order' => $i++,
             'catalog_id' => (int) $it['catalog_id'],
@@ -225,10 +307,15 @@ function bta_create_order($account, $user, $data, $items, $art = array()) {
             'sizes'      => wp_json_encode($it['sizes']),
             'qty'        => (int) $it['qty'],
             'decoration' => $it['decoration'],
-            'placement'  => $it['placement'],
-            'art_id'     => isset($art_ids[$it['art_label']]) ? $art_ids[$it['art_label']] : 0,
+            // placement and art_id keep a plain summary for anything that reads one value.
+            'placement'  => substr(bta_locations_text($locs, $it['decoration']), 0, 255),
+            'art_id'     => $locs ? (int) $locs[0]['art_id'] : 0,
+            'locations'  => wp_json_encode($locs),
+            'price_note' => substr($price_note, 0, 255),
             'notes'      => $it['notes'],
-        ));
+        );
+        if ($unit !== null) $row['unit_price'] = $unit;
+        $wpdb->insert(bta_table('order_items'), $row);
     }
 
     bta_log_status($order_id, 'Submitted', 'Submitted through the portal', $user->display_name ? $user->display_name : $user->username);

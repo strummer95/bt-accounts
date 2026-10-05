@@ -2,14 +2,14 @@
 /*
 Plugin Name: BT Accounts
 Plugin URI: https://boomerts.com
-Description: Contract account portal for Boomer T's. Each account gets its own branded login at /accounts, its own pricing profile, an order entry form, and live order status pulled from the shop's job cards.
-Version: 0.11.0
+Description: Contract account portal for Boomer T's. Each account gets its own branded login at /accounts, its own pricing profile, an order entry form, live order status pulled from the shop's job cards, and every order sent to Printavo as a quote.
+Version: 0.12.0
 Author: Duck and Rabbit Co.
 */
 
 if (!defined('ABSPATH')) exit;
 
-define('BTA_VERSION', '0.11.0');
+define('BTA_VERSION', '0.12.0');
 define('BTA_DIR', plugin_dir_path(__FILE__));
 define('BTA_URL', plugin_dir_url(__FILE__));
 define('BTA_FILE', __FILE__);
@@ -28,6 +28,7 @@ require_once BTA_DIR . 'includes/staff-orders.php';
 require_once BTA_DIR . 'includes/portal-orders.php';
 require_once BTA_DIR . 'includes/portal-print.php';
 require_once BTA_DIR . 'includes/notify.php';
+require_once BTA_DIR . 'includes/printavo.php';
 require_once BTA_DIR . 'includes/portal-quote.php';
 require_once BTA_DIR . 'includes/bt-admin.php';
 require_once BTA_DIR . 'includes/admin-diagnostics.php';

@@ -123,6 +123,8 @@ function bta_staff_order_row($o, $account_names) {
         'submitted'    => bta_staff_date($o->submitted_at, 'M j, Y'),
         'in_hands'     => bta_staff_date($o->in_hands_date, 'M j'),
         'job_id'       => (int) $o->job_id,
+        'pv_state'     => (string) $o->printavo_state,
+        'pv_number'    => (string) $o->printavo_number,
         'status'       => (string) $o->status,
         'status_label' => bta_status_label($o->status),
         'open'         => bta_status_is_open($o->status),
@@ -188,7 +190,9 @@ function bta_staff_order_detail($o) {
             'decoration' => isset($decs[$it->decoration]) ? $decs[$it->decoration] : (string) $it->decoration,
             'deco_key'   => (string) $it->decoration,
             'placement'  => (string) $it->placement,
-            'art'        => isset($artby[(int) $it->art_id]) ? (string) $artby[(int) $it->art_id]->label : '',
+            'art'        => bta_item_art_text($it, $artby),
+            'price'      => $it->unit_price !== null ? '$' . number_format((float) $it->unit_price, 2) : '',
+            'price_note' => (string) $it->price_note,
             'notes'      => (string) $it->notes,
         );
     }
@@ -231,6 +235,7 @@ function bta_staff_order_detail($o) {
         'art'          => $art,
         'log'          => $log,
         'print_url'    => bta_order_print_url($o->id),
+        'printavo'     => bta_pv_order_shape($o),
     );
 }
 
@@ -262,6 +267,7 @@ function bta_staff_routes() {
 }
 
 function bta_staff_rest_orders() {
+    bta_pv_catch_up();   // anything WP-Cron never got round to sending
     $names = array();
     foreach (bta_get_accounts() as $a) $names[(int) $a->id] = $a->name;
 
@@ -404,6 +410,11 @@ function bta_staff_orders_shortcode() {
 #bta-staff .bta-s-num { font-weight:700; white-space:nowrap; }
 #bta-staff .bta-s-dim { color:#9ca3b8; }
 #bta-staff .bta-s-warn { color:#b26d00; font-weight:600; }
+#bta-staff .bta-s-bad { color:#b71c1c; font-weight:600; }
+#bta-staff .bta-s-pv { font-size:15px; margin:0 0 10px; }
+#bta-staff .bta-s-pv a { color:#1a1f5e; font-weight:700; }
+#bta-staff .bta-s-pvwarn { background:#fff8e1; color:#7a4f00; border-radius:6px; padding:8px 10px; font-size:13.5px; line-height:1.5; margin:0 0 10px; white-space:pre-line; }
+#bta-staff .bta-s-pverr { background:#ffebee; color:#b71c1c; border-radius:6px; padding:8px 10px; font-size:13.5px; line-height:1.5; margin:0 0 10px; }
 #bta-staff .bta-s-empty { padding:36px 14px; text-align:center; color:#9ca3b8; font-size:15px; }
 #bta-staff .bta-s-status { display:inline-block; font-family:'Barlow Condensed',sans-serif; font-size:13px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:3px 9px; border-radius:999px; white-space:nowrap; background:#e8eaf6; color:#1a1f5e; }
 #bta-staff .bta-s-status.new  { background:#fce4f1; color:#b0126a; }
@@ -444,8 +455,8 @@ function bta_staff_orders_shortcode() {
   <div class="bta-s-msg" id="bta-s-listmsg"></div>
   <div class="bta-s-tablewrap">
     <table class="bta-s-table">
-      <thead><tr><th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>In hands</th><th>Job card</th><th>Status</th></tr></thead>
-      <tbody id="bta-s-body"><tr><td colspan="9" class="bta-s-empty">Loading&hellip;</td></tr></tbody>
+      <thead><tr><th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>In hands</th><th>Printavo</th><th>Job card</th><th>Status</th></tr></thead>
+      <tbody id="bta-s-body"><tr><td colspan="10" class="bta-s-empty">Loading&hellip;</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -524,11 +535,19 @@ function bta_staff_orders_shortcode() {
     }).join('');
   }
 
+  function pvCell(o) {
+    if (o.pv_number) return '#' + esc(o.pv_number);
+    if (o.pv_state === 'failed') return '<span class="bta-s-bad">not sent</span>';
+    if (o.pv_state === 'queued' || o.pv_state === 'sending') return '<span class="bta-s-dim">sending</span>';
+    if (o.pv_state === 'sent') return 'sent';
+    return '<span class="bta-s-dim">—</span>';
+  }
+
   function renderList() {
     renderPills();
     var rows = S.orders.filter(matches);
     if (!rows.length) {
-      $('bta-s-body').innerHTML = '<tr><td colspan="9" class="bta-s-empty">'
+      $('bta-s-body').innerHTML = '<tr><td colspan="10" class="bta-s-empty">'
         + (S.orders.length ? 'Nothing in this list.' : 'No account orders yet. When an account submits one it lands here.')
         + '</td></tr>';
       return;
@@ -542,6 +561,7 @@ function bta_staff_orders_shortcode() {
         + '<td>' + esc(o.qty) + '</td>'
         + '<td>' + esc(o.submitted || '—') + '</td>'
         + '<td>' + esc(o.in_hands || '—') + '</td>'
+        + '<td>' + pvCell(o) + '</td>'
         + '<td>' + (o.job_id ? '#' + o.job_id : '<span class="bta-s-warn">not raised</span>') + '</td>'
         + '<td>' + statusPill(o.status, o.status_label) + '</td>'
         + '</tr>';
@@ -586,14 +606,16 @@ function bta_staff_orders_shortcode() {
       + (o.notes ? kv('Notes', esc(o.notes).replace(/\n/g, '<br>')) : '')
       + '</table>';
 
-    var items = '<div class="bta-s-tablewrap"><table class="bta-s-table"><thead><tr><th>Style</th><th>Colour</th><th>Sizes</th><th>Qty</th><th>Decoration</th><th>Placement</th><th>Logo</th></tr></thead><tbody>'
+    var items = '<div class="bta-s-tablewrap"><table class="bta-s-table"><thead><tr><th>Style</th><th>Colour</th><th>Sizes</th><th>Qty</th><th>Decoration</th><th>Locations</th><th>Logo</th><th>Each</th></tr></thead><tbody>'
       + (o.items.length ? o.items.map(function (it) {
           return '<tr><td><strong>' + esc(it.style_no) + '</strong><br><span class="bta-s-dim">' + esc(it.style_name) + '</span></td>'
             + '<td>' + esc(it.color || '—') + '</td><td>' + esc(it.sizes || '—') + '</td><td><strong>' + esc(it.qty) + '</strong></td>'
-            + '<td>' + esc(it.decoration) + '</td><td>' + esc(it.placement) + '</td><td>' + esc(it.art || '—') + '</td></tr>'
-            + (it.notes ? '<tr><td colspan="7" class="bta-s-dim">Note: ' + esc(it.notes) + '</td></tr>' : '');
-        }).join('') : '<tr><td colspan="7" class="bta-s-empty">No items.</td></tr>')
-      + '<tr><td colspan="3" style="text-align:right"><strong>Total pieces</strong></td><td colspan="4"><strong>' + esc(o.qty) + '</strong></td></tr>'
+            + '<td>' + esc(it.decoration) + '</td><td>' + esc(it.placement) + '</td><td>' + esc(it.art || '—') + '</td>'
+            + '<td>' + (it.price ? esc(it.price) : '<span class="bta-s-dim">shop</span>') + '</td></tr>'
+            + (it.price_note ? '<tr><td colspan="8" class="bta-s-dim">Price: ' + esc(it.price_note) + '</td></tr>' : '')
+            + (it.notes ? '<tr><td colspan="8" class="bta-s-dim">Note: ' + esc(it.notes) + '</td></tr>' : '');
+        }).join('') : '<tr><td colspan="8" class="bta-s-empty">No items.</td></tr>')
+      + '<tr><td colspan="3" style="text-align:right"><strong>Total pieces</strong></td><td colspan="5"><strong>' + esc(o.qty) + '</strong></td></tr>'
       + '</tbody></table></div>';
 
     var art = o.art.length
@@ -638,6 +660,30 @@ function bta_staff_orders_shortcode() {
     }
     job += '</div>';
 
+    var pv = o.printavo || {};
+    var pvc = '<div class="bta-s-card"><h3 class="bta-s-h3">Printavo</h3>';
+    if (pv.number || pv.state === 'sent') {
+      pvc += '<p class="bta-s-pv">Quote ' + (pv.url ? '<a href="' + esc(pv.url) + '" target="_blank" rel="noopener">#' + esc(pv.number || '?') + ' &rarr;</a>' : '#' + esc(pv.number || '?'))
+        + (pv.when ? ' <span class="bta-s-dim">sent ' + esc(pv.when) + '</span>' : '') + '</p>'
+        + (pv.error ? '<div class="bta-s-pvwarn">' + esc(pv.error) + '</div>' : '')
+        + '<p class="bta-s-hint">Review it in Printavo, then send it for approval from there.</p>'
+        + '<button type="button" class="bta-s-btn ghost sm" data-act="pvagain">Send again as a new quote</button>';
+    } else if (!pv.connected) {
+      pvc += '<p class="bta-s-hint">Printavo isn&rsquo;t connected yet. An admin adds the Printavo email and API token under BT Accounts in wp-admin.</p>';
+    } else if (pv.state === 'queued' || pv.state === 'sending') {
+      pvc += '<p class="bta-s-hint">On its way to Printavo' + (pv.when ? ' (since ' + esc(pv.when) + ')' : '') + '.</p>'
+        + '<button type="button" class="bta-s-btn sm" data-act="pvsend">Send now</button>';
+    } else {
+      pvc += (pv.state === 'failed' ? '<div class="bta-s-pverr"><strong>Didn&rsquo;t go in.</strong> ' + esc(pv.error) + '</div>' : '<p class="bta-s-hint">Not in Printavo yet.</p>')
+        + '<button type="button" class="bta-s-btn pink" data-act="pvsend" style="width:100%">' + (pv.state === 'failed' ? 'Try again' : 'Send to Printavo') + '</button>';
+    }
+    if (pv.log && pv.log.length) {
+      pvc += '<ul class="bta-s-log" style="margin-top:10px">' + pv.log.map(function (l) {
+        return '<li><small>' + esc(l.when) + (l.by ? ' &middot; ' + esc(l.by) : '') + '</small><small style="color:#0f1240">' + esc(l.text) + '</small></li>';
+      }).join('') + '</ul>';
+    }
+    pvc += '</div>';
+
     var hist = o.log.length
       ? '<div class="bta-s-card"><h3 class="bta-s-h3">History</h3><ul class="bta-s-log">' + o.log.map(function (l) {
           return '<li><strong>' + esc(l.status) + '</strong><small>' + esc(l.when) + (l.by ? ' &middot; ' + esc(l.by) : '') + '</small>'
@@ -651,7 +697,7 @@ function bta_staff_orders_shortcode() {
       + '<a class="bta-s-btn pink" href="' + esc(o.print_url) + '" target="_blank" rel="noopener">Print work order</a></div>'
       + '<div class="bta-s-msg" id="bta-s-detailmsg"></div>'
       + '<div class="bta-s-grid"><div class="bta-s-main"><div class="bta-s-card">' + info + '</div>' + items + art + '</div>'
-      + '<div class="bta-s-side">' + status + job + hist + '</div></div>';
+      + '<div class="bta-s-side">' + pvc + status + job + hist + '</div></div>';
   }
 
   /* By id from the list, or by number from the address (byNumber). push=false
@@ -759,6 +805,23 @@ function bta_staff_orders_shortcode() {
     }).catch(function (e) { msg('bta-s-detailmsg', e.message, 'bad'); });
   }
 
+  function sendPrintavo(btn, again) {
+    var o = S.current;
+    if (!o) return;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    api('/orders/' + o.id + '/printavo', 'POST', { again: again ? 1 : 0 }).then(function (d) {
+      if (S.current && S.current.id !== d.order.id) return;
+      renderDetail(d.order);
+      if (d.ok) msg('bta-s-detailmsg', 'In Printavo as quote #' + (d.order.printavo.number || '?') + '.');
+      else msg('bta-s-detailmsg', d.message || 'Printavo did not take it.', 'bad');
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+      msg('bta-s-detailmsg', e.message, 'bad');
+    });
+  }
+
   function setStatus(btn) {
     var o = S.current;
     if (!o) return;
@@ -794,6 +857,8 @@ function bta_staff_orders_shortcode() {
     if (act === 'unlink' && confirm('Unlink this job card? The order keeps its current status.')) linkJob(0);
     if (act === 'jobsearch') searchJobs($('bta-s-jobq').value.trim());
     if (act === 'newjob') newJob();
+    if (act === 'pvsend') sendPrintavo(a, false);
+    if (act === 'pvagain' && confirm('This makes a second quote in Printavo for the same order. Only do it if the first one was deleted or is wrong. Go ahead?')) sendPrintavo(a, true);
   });
 
   root.addEventListener('keydown', function (e) {

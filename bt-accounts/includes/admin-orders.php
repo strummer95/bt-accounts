@@ -134,7 +134,8 @@ function bta_admin_order_detail($order) {
         echo '<td><strong>' . (int) $it->qty . '</strong></td>';
         echo '<td>' . esc_html(isset($decs[$it->decoration]) ? $decs[$it->decoration] : $it->decoration) . '</td>';
         echo '<td>' . esc_html($it->placement) . '</td>';
-        echo '<td>' . esc_html(isset($artby[(int) $it->art_id]) ? $artby[(int) $it->art_id]->label : '—') . '</td>';
+        $logos = bta_item_art_text($it, $artby);
+        echo '<td>' . esc_html($logos !== '' ? $logos : '—') . '</td>';
         echo '</tr>';
         if ($it->notes !== '') echo '<tr><td colspan="7" style="color:#666">Note: ' . esc_html($it->notes) . '</td></tr>';
     }

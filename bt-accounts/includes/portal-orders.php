@@ -119,7 +119,7 @@ function bta_portal_order_detail($user, $account, $order_id) {
 
     echo '<h2 class="bta-h2" style="margin-top:28px">Items</h2>';
     echo '<div class="bta-tablewrap"><table class="bta-table">';
-    echo '<thead><tr><th>Style</th><th>Colour</th><th>Sizes</th><th>Qty</th><th>Decoration</th><th>Placement</th><th>Logo</th></tr></thead><tbody>';
+    echo '<thead><tr><th>Style</th><th>Colour</th><th>Sizes</th><th>Qty</th><th>Decoration</th><th>Locations</th><th>Logo</th></tr></thead><tbody>';
     foreach ($items as $it) {
         $sizes = bta_item_sizes($it);
         $parts = array();
@@ -132,7 +132,8 @@ function bta_portal_order_detail($user, $account, $order_id) {
         echo '<td>' . (int) $it->qty . '</td>';
         echo '<td>' . esc_html(isset($dec[$it->decoration]) ? $dec[$it->decoration] : $it->decoration) . '</td>';
         echo '<td>' . esc_html($it->placement !== '' ? $it->placement : '—') . '</td>';
-        echo '<td>' . esc_html(isset($artby[(int) $it->art_id]) ? $artby[(int) $it->art_id]->label : '—') . '</td>';
+        $logos = bta_item_art_text($it, $artby);
+        echo '<td>' . esc_html($logos !== '' ? $logos : '—') . '</td>';
         echo '</tr>';
         if ($it->notes !== '') {
             echo '<tr class="bta-row-note"><td colspan="7"><span class="bta-sub">Note:</span> ' . esc_html($it->notes) . '</td></tr>';
@@ -217,7 +218,7 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
 
     // Items
     echo '<div class="bta-card"><h2 class="bta-h2">Items</h2>';
-    echo '<p class="bta-hint">Type a style number or name to pull it from our catalogue, or just type it in if it is not there.</p>';
+    echo '<p class="bta-hint">Type a style number or name to pull it from our catalogue, or just type it in if it is not there. Add a location for every spot that gets printed or embroidered. Estimates use your account rates; we confirm once we have seen the art.</p>';
     echo '<div id="btaItemRows"></div>';
     echo '<button type="button" class="bta-btn-ghost" id="btaAddItem">+ Add another item</button>';
     echo '</div>';
@@ -238,6 +239,7 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
     echo '</div>';
 
     echo '<div class="bta-submitbar">';
+    echo '<div class="bta-est-total" id="btaOrderEst" aria-live="polite"></div>';
     echo '<a class="bta-btn-ghost" href="' . esc_url(bta_portal_url()) . '">Cancel</a>';
     echo '<button class="bta-btn bta-btn-inline" type="submit">Submit order</button>';
     echo '</div>';
@@ -248,7 +250,9 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
         'sizes'      => bta_default_sizes(),
         'placements' => bta_placements(),
         'decorations'=> bta_decorations(),
+        'embTypes'   => bta_emb_types(),
         'searchUrl'  => rest_url('bt-accounts/v1/styles'),
+        'quoteUrl'   => function_exists('btq_price') ? rest_url('bt-accounts/v1/quote') : '',
     )) . '</script>';
 }
 
@@ -329,41 +333,59 @@ function bta_handle_order_submit($user, $account) {
     $art_labels = wp_list_pluck($art, 'label');
 
     // ── Items ──
-    $items = array();
-    $styles = isset($_POST['item_style']) ? (array) wp_unslash($_POST['item_style']) : array();
-    foreach ($styles as $i => $style) {
-        $style = sanitize_text_field($style);
-        $name  = isset($_POST['item_name'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_name'][$i])) : '';
+    // Every field of a line sits under one explicit index, item[i][...], so a
+    // line removed mid-form cannot shift one line's sizes onto another.
+    $items  = array();
+    $posted = isset($_POST['item']) && is_array($_POST['item']) ? wp_unslash($_POST['item']) : array();
+    $n = 0;
+    foreach ($posted as $row) {
+        if (!is_array($row)) continue;
+        $f = function ($k) use ($row) { return isset($row[$k]) && is_scalar($row[$k]) ? sanitize_text_field($row[$k]) : ''; };
+        $style = $f('style');
+        $name  = $f('name');
         if ($style === '' && $name === '') continue;
+        $n++;
+        $what = 'Item ' . $n . ' (' . ($style !== '' ? $style : $name) . ')';
 
         $sizes = array();
         $qty = 0;
-        if (isset($_POST['item_sizes'][$i]) && is_array($_POST['item_sizes'][$i])) {
-            foreach ((array) wp_unslash($_POST['item_sizes'][$i]) as $sz => $q) {
-                $q = (int) $q;
+        if (isset($row['sizes']) && is_array($row['sizes'])) {
+            foreach ($row['sizes'] as $sz => $q) {
+                $q = is_scalar($q) ? (int) $q : 0;
                 if ($q > 0) { $sizes[sanitize_text_field($sz)] = $q; $qty += $q; }
             }
         }
-        if ($qty < 1) { $errors[] = 'Item ' . ($i + 1) . ' (' . ($style !== '' ? $style : $name) . ') needs a quantity in at least one size.'; }
+        if ($qty < 1) $errors[] = $what . ' needs a quantity in at least one size.';
 
-        $dec = isset($_POST['item_decoration'][$i]) ? sanitize_key(wp_unslash($_POST['item_decoration'][$i])) : '';
+        $dec = sanitize_key($f('decoration'));
         if (!array_key_exists($dec, bta_decorations())) $dec = 'print';
 
-        $art_label = isset($_POST['item_art'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_art'][$i])) : '';
-        if ($art_label !== '' && !in_array($art_label, $art_labels, true)) $art_label = '';
+        $locs = array();
+        if (isset($row['loc']) && is_array($row['loc'])) {
+            foreach ($row['loc'] as $l) {
+                if (!is_array($l)) continue;
+                $place = isset($l['placement']) && is_scalar($l['placement']) ? sanitize_text_field($l['placement']) : '';
+                $lab   = isset($l['art']) && is_scalar($l['art']) ? sanitize_text_field($l['art']) : '';
+                $emb   = isset($l['emb']) && is_scalar($l['emb']) ? sanitize_key($l['emb']) : '';
+                if ($place === '') continue;
+                if ($lab !== '' && !in_array($lab, $art_labels, true)) $lab = '';
+                if ($dec !== 'embroidery' || !array_key_exists($emb, bta_emb_types())) $emb = $dec === 'embroidery' ? 'logo' : '';
+                $locs[] = array('placement' => $place, 'art_label' => $lab, 'emb' => $emb);
+            }
+        }
+        if (!$locs) $errors[] = $what . ' needs at least one ' . ($dec === 'embroidery' ? 'embroidery' : 'print') . ' location.';
 
         $items[] = array(
-            'catalog_id' => isset($_POST['item_catalog_id'][$i]) ? (int) $_POST['item_catalog_id'][$i] : 0,
+            'catalog_id' => (int) $f('catalog_id'),
             'style_no'   => $style,
             'style_name' => $name,
-            'brand'      => isset($_POST['item_brand'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_brand'][$i])) : '',
-            'color'      => isset($_POST['item_color'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_color'][$i])) : '',
+            'brand'      => $f('brand'),
+            'color'      => $f('color'),
             'sizes'      => $sizes,
             'qty'        => $qty,
             'decoration' => $dec,
-            'placement'  => isset($_POST['item_placement'][$i]) ? sanitize_text_field(wp_unslash($_POST['item_placement'][$i])) : '',
-            'art_label'  => $art_label,
-            'notes'      => isset($_POST['item_notes'][$i]) ? sanitize_textarea_field(wp_unslash($_POST['item_notes'][$i])) : '',
+            'locations'  => $locs,
+            'notes'      => isset($row['notes']) && is_scalar($row['notes']) ? sanitize_textarea_field($row['notes']) : '',
         );
     }
     if (!$items) $errors[] = 'Add at least one item.';
