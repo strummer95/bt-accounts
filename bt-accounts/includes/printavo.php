@@ -716,6 +716,20 @@ function bta_pv_production_note($o, $account, $items, $art, $artby) {
     return $o->order_number . ' · ' . bta_pv_staff_link($o);
 }
 
+/**
+ * Price per piece for a line. Lines saved before prices were stored (orders
+ * from before 0.12.0) are priced now, on the account's rates plus the
+ * catalogue garment, the same way a new order is.
+ */
+function bta_pv_unit_price($it, $o) {
+    if ($it->unit_price !== null) return (float) $it->unit_price;
+    if ($o && $it->price_note === '') {
+        list($unit) = bta_price_saved_line($o->account_id, $it);
+        if ($unit !== null) return (float) $unit;
+    }
+    return 0.0;
+}
+
 /** The blanks line for an order: supplier, their PO, arrival. */
 function bta_pv_blanks_text($o) {
     $arr = $o->expected_arrival ? date_i18n('M j, Y', strtotime($o->expected_arrival)) : '';
@@ -763,7 +777,7 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos, $o = null) {
         'itemNumber'  => $it->style_no,
         'description' => $desc,
         'color'       => $it->color,
-        'price'       => $it->unit_price !== null ? (float) $it->unit_price : 0.0,
+        'price'       => bta_pv_unit_price($it, $o),
         'sizes'       => $sizes,
         'position'    => 1,
     );

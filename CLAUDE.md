@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.9**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.13.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -124,6 +124,11 @@ quote # with Try again / Send again. Failures email the shop and never touch the
 - Order lines now have `locations` (JSON list of placement / art_id / emb) plus `unit_price` and
   `price_note`. `placement` and `art_id` still hold a summary and the first logo for old readers.
   Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.
+  **Garment (0.13.0):** a line picked from BT Catalog (`catalog_id`) adds that style's customer price
+  (`bta_catalog_price()` → `bt_cat_price_pair()`, the product page's "/ea retail") via the engine's
+  `custom` garment, counted once per line. Typed-in styles stay decoration-only (`supplied`).
+  Dillon confirmed: 2 × JST73 @ $36.95 + embroidered logo = **$64.85 each**. Legacy lines with no
+  stored price are priced at Printavo send time (`bta_pv_unit_price()`).
 - Order form fields are `item[i][...]` with explicit indexes; the old `item_x[]` arrays shifted
   sizes onto the wrong line when one was removed.
 

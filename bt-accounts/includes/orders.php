@@ -247,16 +247,22 @@ function bta_item_art_text($item, $artby) {
  * Same engine and arguments as the Quote tab, so the quote in Printavo carries
  * the number the account saw. Null means the shop prices it by hand.
  */
-function bta_price_order_line($account_id, $qty, $decoration, $locs) {
+function bta_price_order_line($account_id, $qty, $decoration, $locs, $retail = 0.0) {
     if ($qty < 1 || !$locs) return array(null, '');
+
+    // A garment picked from the catalogue is ours to buy, so its retail goes
+    // in through the engine's 'custom' garment (with the quantity discount).
+    // A style typed in by hand is one they send us: decoration only.
+    $garment = $retail > 0 ? array('garment' => 'custom', 'retail' => (float) $retail) : array('garment' => 'supplied');
 
     if ($decoration === 'embroidery') {
         // Each embroidered location is its own run of stitches, so they add up.
+        // The garment is counted once, on the first.
         $unit = 0.0;
-        foreach ($locs as $l) {
+        foreach ($locs as $k => $l) {
             $r = bta_price_for_account($account_id, array(
                 'qty' => $qty, 'method' => 'embroidery', 'embType' => !empty($l['emb']) ? $l['emb'] : 'logo',
-            ));
+            ) + ($k === 0 ? $garment : array('garment' => 'supplied')));
             if (is_wp_error($r)) return array(null, $r->get_error_message());
             if (!empty($r['quote']) || !isset($r['perShirt'])) return array(null, 'Embroidery at this quantity is priced by the shop.');
             $unit += (float) $r['perShirt'];
@@ -265,13 +271,31 @@ function bta_price_order_line($account_id, $qty, $decoration, $locs) {
     }
 
     $n = count($locs);
-    $r = bta_price_for_account($account_id, array('qty' => $qty, 'method' => 'print', 'locations' => min(3, $n)));
+    $r = bta_price_for_account($account_id, array('qty' => $qty, 'method' => 'print', 'locations' => min(3, $n)) + $garment);
     if (is_wp_error($r)) return array(null, $r->get_error_message());
     if (!empty($r['quote']) || !isset($r['perShirt'])) {
         return array(null, !empty($r['message']) ? (string) $r['message'] : 'Priced by the shop.');
     }
     $extra = $n - 3;
     return array(round((float) $r['perShirt'], 2), $extra > 0 ? 'Price covers 3 locations; the other ' . $extra . ' are priced by the shop.' : '');
+}
+
+/**
+ * Customer price of a BT Catalog style, the same figure its product page
+ * shows ("$36.95 /ea retail"). 0 when BT Catalog is absent or has no price.
+ */
+function bta_catalog_price($catalog_id) {
+    global $wpdb;
+    if (!$catalog_id || !function_exists('bt_cat_table') || !function_exists('bt_cat_price_pair')) return 0.0;
+    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . bt_cat_table() . " WHERE id = %d", (int) $catalog_id), ARRAY_A);
+    if (!$row) return 0.0;
+    $pp = bt_cat_price_pair($row);
+    return isset($pp['price']) ? round((float) $pp['price'], 2) : 0.0;
+}
+
+/** Price an existing order line from what is stored on it (for lines saved without a price). */
+function bta_price_saved_line($account_id, $it) {
+    return bta_price_order_line($account_id, (int) $it->qty, $it->decoration, bta_item_locations($it), bta_catalog_price((int) $it->catalog_id));
 }
 
 function bta_order_qty($order_id) {
@@ -352,7 +376,9 @@ function bta_create_order($account, $user, $data, $items, $art = array()) {
                 'emb'       => $l['emb'],
             );
         }
-        list($unit, $price_note) = bta_price_order_line($account->id, (int) $it['qty'], $it['decoration'], $locs);
+        $retail = bta_catalog_price((int) $it['catalog_id']);
+        list($unit, $price_note) = bta_price_order_line($account->id, (int) $it['qty'], $it['decoration'], $locs, $retail);
+        if ($retail > 0 && $unit !== null && $price_note === '') $price_note = 'Includes the garment at $' . number_format($retail, 2) . ' each.';
 
         $row = array(
             'order_id'   => $order_id,
@@ -453,7 +479,7 @@ function bta_catalog_search($term, $limit = 10) {
     $starts = $wpdb->esc_like($term) . '%';
 
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT id, style_no, brand, name, sizes, colors
+        "SELECT *
          FROM $t
          WHERE active = 1 AND (style_no LIKE %s OR name LIKE %s OR brand LIKE %s)
          ORDER BY (style_no LIKE %s) DESC, style_no ASC
@@ -481,6 +507,7 @@ function bta_catalog_search($term, $limit = 10) {
             'label'  => trim($r->style_no . ' — ' . $r->brand . ' ' . $r->name),
             'colors' => array_values(array_unique($names)),
             'sizes'  => $sizes,
+            'price'  => function_exists('bt_cat_price_pair') ? round((float) bt_cat_price_pair((array) $r)['price'], 2) : 0,
         );
     }
     return $out;
