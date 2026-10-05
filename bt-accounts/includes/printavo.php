@@ -836,11 +836,6 @@ function bta_pv_create_quote($o) {
     $tz   = wp_timezone();
     $due  = bta_customer_due($o);
     $prod = bta_production_due($o);
-    if (!$o->in_hands_date) {
-        $warnings[] = 'No in-hands date on the order, so the customer due date is the earliest allowed: ' . bta_ymd_label($due) . '.';
-    } elseif ($due !== $o->in_hands_date) {
-        $warnings[] = 'In-hands date ' . bta_ymd_label($o->in_hands_date) . ' was too soon or on a weekend, so the customer due date is ' . bta_ymd_label($due) . '.';
-    }
     $due_at = (new DateTime($prod . ' 12:00:00', $tz))->format('c');
 
     $quote = array(
