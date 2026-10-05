@@ -483,32 +483,80 @@ function bta_pv_account_contact($account) {
  * name is read from the schema rather than assumed.
  */
 function bta_pv_fetch_categories() {
-    $q = bta_pv_type('Query');
-    $field = 'categories';
-    if ($q) {
-        $field = '';
-        foreach (array_keys($q['fields']) as $f) {
-            if (preg_match('/categor/i', $f)) { $field = $f; break; }
-        }
-        if ($field === '') return new WP_Error('bta_pv_nocat', 'Printavo does not list line item categories through its API.');
-    }
-    $args = ($q && isset($q['args'][$field]['first'])) || !$q ? '(first: 100)' : '';
-    $d = bta_pv_gql('{ ' . $field . $args . ' { edges { node { id name } } } }');
-    if (is_wp_error($d)) {
-        // Some lists are plain arrays rather than connections.
-        $d = bta_pv_gql('{ ' . $field . ' { id name } }');
-        if (is_wp_error($d)) return $d;
-        $rows = isset($d[$field]) ? (array) $d[$field] : array();
+    $path = bta_pv_find_category_path();
+    if (is_wp_error($path)) return $path;
+
+    // Build the nested query along the path, e.g. { account { categories(first: 100) { ... } } }.
+    $leaf  = end($path);
+    $inner = $leaf['connection']
+        ? '{ edges { node { id name } } }'
+        : '{ id name }';
+    $q = $leaf['name'] . ($leaf['first'] ? '(first: 100)' : '') . ' ' . $inner;
+    for ($i = count($path) - 2; $i >= 0; $i--) $q = $path[$i]['name'] . ' { ' . $q . ' }';
+    $d = bta_pv_gql('{ ' . $q . ' }');
+    if (is_wp_error($d)) return $d;
+
+    $node = $d;
+    foreach ($path as $step) $node = isset($node[$step['name']]) ? $node[$step['name']] : array();
+    $rows = array();
+    if ($leaf['connection']) {
+        foreach ((array) (isset($node['edges']) ? $node['edges'] : array()) as $e) $rows[] = isset($e['node']) ? $e['node'] : array();
     } else {
-        $rows = array();
-        foreach ((array) (isset($d[$field]['edges']) ? $d[$field]['edges'] : array()) as $e) $rows[] = isset($e['node']) ? $e['node'] : array();
+        $rows = (array) $node;
     }
     $out = array();
     foreach ($rows as $n) {
-        if (!empty($n['id'])) $out[] = array('id' => (string) $n['id'], 'name' => (string) $n['name']);
+        if (!empty($n['id'])) $out[] = array('id' => (string) $n['id'], 'name' => (string) (isset($n['name']) ? $n['name'] : $n['id']));
     }
     update_option('bta_pv_categories', $out, false);
     return $out;
+}
+
+/**
+ * Where Printavo keeps its category list. Not on the top-level query, so
+ * walk down from it (account, catalog settings...) up to three levels,
+ * following only fields that need no arguments, until a field returns
+ * Category items. The path found is remembered.
+ */
+function bta_pv_find_category_path() {
+    $saved = get_option('bta_pv_cat_path', null);
+    if (is_array($saved) && $saved) return $saved;
+
+    if (!bta_pv_type('Query')) {
+        return array(array('name' => 'categories', 'connection' => true, 'first' => true));
+    }
+
+    $budget = 30;   // type lookups; each is one request
+    $queue  = array(array('type' => 'Query', 'path' => array()));
+    $seen   = array('Query' => true);
+    while ($queue && $budget > 0) {
+        $cur = array_shift($queue);
+        $t = bta_pv_type($cur['type']);
+        $budget--;
+        if (!$t || $t['kind'] !== 'OBJECT') continue;
+
+        foreach ($t['fields'] as $fname => $ref) {
+            $args = isset($t['args'][$fname]) ? $t['args'][$fname] : array();
+            $needs = false;
+            foreach ($args as $a) if ($a['required']) $needs = true;
+            if ($needs) continue;
+
+            $base = $ref['name'];
+            $is_conn = preg_match('/^(\w*Categor\w*)Connection$/', $base);
+            $is_list = $ref['list'] && preg_match('/categor/i', $base);
+            if ($is_conn || $is_list) {
+                $path = array_merge($cur['path'], array(array('name' => $fname, 'connection' => (bool) $is_conn, 'first' => isset($args['first']))));
+                update_option('bta_pv_cat_path', $path, false);
+                return $path;
+            }
+            if ($ref['kind'] === 'OBJECT' && !$ref['list'] && count($cur['path']) < 2
+                && !preg_match('/(Connection|Edge|PageInfo)$/', $base) && empty($seen[$base])) {
+                $seen[$base] = true;
+                $queue[] = array('type' => $base, 'path' => array_merge($cur['path'], array(array('name' => $fname, 'connection' => false, 'first' => false))));
+            }
+        }
+    }
+    return new WP_Error('bta_pv_nocat', 'Printavo does not list line item categories through its API (looked under: ' . implode(', ', array_keys($seen)) . ').');
 }
 
 /**
@@ -722,6 +770,12 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos) {
     } else {
         $line['category']   = array('id' => $cat);
         $line['categoryId'] = $cat;
+        $lt = $line_type ? bta_pv_type($line_type) : null;
+        if ($lt) {
+            foreach (array_keys($lt['fields']) as $f) {
+                if (preg_match('/categor/i', $f)) $line[$f] = array('id' => $cat);
+            }
+        }
     }
 
     return array('position' => $pos, 'lineItems' => array($line), 'imprints' => $imprints);
@@ -890,6 +944,13 @@ function bta_pv_create_quote($o) {
         }
     }
 
+    foreach ($dropped as $dp) {
+        if (preg_match('/lineItems\[\d+\]\.category$|lineItemCreate\.input\.category$/', $dp)) {
+            $lt = bta_pv_type($nested ? $nested_line : bta_pv_arg_type('lineItemCreate', 'input', 'LineItemCreateInput'));
+            $warnings[] = 'Category left blank: Printavo\'s line items have no category field' . ($lt ? ' (they take: ' . implode(', ', array_keys($lt['fields'])) . ')' : '') . '.';
+            break;
+        }
+    }
     if (!empty($GLOBALS['bta_pv_cat_miss'])) {
         $cats = (array) get_option('bta_pv_categories', array());
         $warnings[] = $cats
@@ -1109,6 +1170,7 @@ function bta_pv_handle_admin_post($action) {
     if ($action === 'test_printavo') {
         bta_pv_forget_schema();
         delete_option('bta_pv_categories');
+        delete_option('bta_pv_cat_path');
         $st = bta_pv_fetch_statuses();
         if (is_wp_error($st)) {
             update_option('bta_pv_last_test', array('ok' => 0, 'at' => current_time('mysql'), 'msg' => $st->get_error_message()), false);

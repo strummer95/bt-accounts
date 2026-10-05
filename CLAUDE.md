@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.3**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.4**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -109,6 +109,10 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   contact lookup lands quotes on Sasha's customer. PO (`visualPoNumber`) and `customerDueAt` are
   set by `quoteUpdate` straight after create if `quoteCreate` won't take them. Line item Category:
   print → Digi Print, embroidery → Embroidery (matched by name, overridable in settings).
+  Live Printavo has **no top-level categories query**; `bta_pv_find_category_path()` walks
+  no-arg object fields up to 3 levels for a `*CategoryConnection` and caches the path in
+  `bta_pv_cat_path` (Test connection clears it). Live result still unconfirmed as of 0.12.4.
+  Confirmed live: PO (`PO #`), customer and production due dates, ship-to, tag.
 - Due dates (0.12.3, `orders.php`): in-hands must be a weekday at least 7 days after submission;
   weekend or after 5pm Friday counts from the next Monday (`bta_min_in_hands()`). Printavo
   `customerDueAt` = `bta_customer_due()` (in-hands held to that rule), `dueAt` (production) =
