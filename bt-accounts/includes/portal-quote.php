@@ -46,8 +46,9 @@ function bta_portal_quote($user, $account) {
     echo '<div id="btaEmbOpts" hidden>';
     echo '<label class="bta-label" style="margin-top:18px">Embroidery type</label>';
     echo '<div class="bta-seg bta-seg-wrap" id="btaEmbType">';
-    echo '<button type="button" class="bta-seg-btn is-on" data-v="text">Text</button>';
-    echo '<button type="button" class="bta-seg-btn" data-v="logo">Logo</button>';
+    // Logo first and on: it is what almost every account embroidery job is.
+    echo '<button type="button" class="bta-seg-btn is-on" data-v="logo">Logo</button>';
+    echo '<button type="button" class="bta-seg-btn" data-v="text">Text</button>';
     echo '<button type="button" class="bta-seg-btn" data-v="hard">Hard to handle</button>';
     echo '</div></div>';
 
@@ -89,9 +90,12 @@ function bta_rest_quote($request) {
     $account = bta_current_account();
     if (!$account) return new WP_Error('bta_no_account', 'Not signed in.', array('status' => 401));
 
+    // Decoration only, unless the order form passes a catalogue garment's retail.
+    $retail = (float) $request->get_param('retail');
     $res = bta_price_for_account($account->id, array(
         'qty'       => (int) $request->get_param('qty'),
-        'garment'   => 'supplied',                       // always: they send the blanks
+        'garment'   => $retail > 0 ? 'custom' : 'supplied',
+        'retail'    => $retail,
         'method'    => sanitize_text_field((string) $request->get_param('method')),
         'locations' => (int) $request->get_param('locations'),
         'embType'   => sanitize_text_field((string) $request->get_param('embType')),

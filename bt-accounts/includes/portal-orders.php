@@ -178,7 +178,7 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
 
     echo '<p class="bta-crumb"><a href="' . esc_url(bta_portal_url()) . '">&larr; Orders</a></p>';
     echo '<h1 class="bta-h1">New order</h1>';
-    echo '<p class="bta-lede">You supply the blanks and the artwork; we decorate. We will review the art and confirm pricing before anything goes into production.</p>';
+    echo '<p class="bta-lede">Pick a garment from our catalogue and its price is included in the estimate. A style you type in yourself is one you are sending us, priced as decoration only. We review the art and confirm pricing before anything goes into production.</p>';
 
     if ($errors) {
         echo '<div class="bta-alert"><strong>Please fix the following:</strong><ul style="margin:8px 0 0 18px">';

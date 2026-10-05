@@ -147,11 +147,12 @@
       var mine = row._estSeq = (row._estSeq || 0) + 1;
       var calls;
       if (isEmb(row)) {
-        calls = Array.prototype.map.call(locs, function (l) {
-          return quote({ qty: qty, method: 'embroidery', embType: l.querySelector('.bta-emb').value });
+        // The catalogue garment's price rides on the first location only.
+        calls = Array.prototype.map.call(locs, function (l, k) {
+          return quote({ qty: qty, method: 'embroidery', embType: l.querySelector('.bta-emb').value, retail: k === 0 ? retail(row) : 0 });
         });
       } else {
-        calls = [quote({ qty: qty, method: 'print', locations: Math.min(3, locs.length) })];
+        calls = [quote({ qty: qty, method: 'print', locations: Math.min(3, locs.length), retail: retail(row) })];
       }
       Promise.all(calls).then(function (res) {
         if (mine !== row._estSeq) return;
@@ -169,6 +170,11 @@
         orderTotal();
       });
     }, 250);
+  }
+
+  /** Retail of the catalogue garment picked on this line; 0 for a typed-in style they send us. */
+  function retail(row) {
+    return row.querySelector('.bta-cid').value !== '0' ? (parseFloat(row.getAttribute('data-retail')) || 0) : 0;
   }
 
   function orderTotal() {
@@ -276,6 +282,8 @@
     input.addEventListener('input', function () {
       var q = input.value.trim();
       row.querySelector('.bta-cid').value = '0';
+      row.removeAttribute('data-retail');
+      estimate(row);
       clearTimeout(timer);
       if (q.length < 2) { close(); return; }
 
@@ -310,6 +318,8 @@
     row.querySelector('.bta-name').value  = r.name;
     row.querySelector('.bta-brand').value = r.brand;
     row.querySelector('.bta-cid').value   = r.id;
+    row.setAttribute('data-retail', r.price || 0);
+    estimate(row);
 
     var dl = row.querySelector('#bta-colors-' + i);
     if (dl) dl.innerHTML = (r.colors || []).map(function (c) {

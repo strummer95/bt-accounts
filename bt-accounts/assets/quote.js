@@ -11,7 +11,7 @@
   var breaks = document.getElementById('btaBreaks');
   var qty    = document.getElementById('btaQty');
 
-  var state = { method: 'print', locations: 1, embType: 'text' };
+  var state = { method: 'print', locations: 1, embType: 'logo' };
   var seq = 0, timer = null;
 
   function money(n) {
