@@ -714,14 +714,11 @@ function bta_pv_production_note($o, $account, $items, $art, $artby) {
     $L[] = 'BT Accounts order ' . $o->order_number . ' from ' . $account->name
          . ($user ? ', submitted by ' . ($user->display_name ? $user->display_name : $user->username) : '')
          . ($o->submitted_at ? ' on ' . $d($o->submitted_at) : '') . '.';
-    if ($o->end_customer !== '') $L[] = 'For: ' . $o->end_customer;
-    if ($o->account_po !== '')   $L[] = 'Their PO: ' . $o->account_po;
+    // End customer and ship-to show in Printavo's Customer Shipping, the PO in
+    // PO #, and the blanks in each item's description, so none repeat here.
     if ($o->in_hands_date)       $L[] = 'In hands (asked for): ' . $d($o->in_hands_date);
     $L[] = 'Customer due: ' . bta_ymd_label(bta_customer_due($o)) . ' · Production due: ' . bta_ymd_label(bta_production_due($o));
-    $blanks = trim($o->supplier_name . ($o->supplier_po !== '' ? ', PO ' . $o->supplier_po : '') . ($o->expected_arrival ? ', arriving ' . $d($o->expected_arrival) : ''), ', ');
-    if ($blanks !== '') $L[] = 'Blanks: ' . $blanks;
-    $addr = trim(implode(', ', array_filter(array($o->ship_name, $o->ship_address1, $o->ship_address2, trim($o->ship_city . ' ' . $o->ship_state . ' ' . $o->ship_zip)))));
-    if ($addr !== '' || $o->ship_method !== '') $L[] = 'Ship to: ' . $addr . ($o->ship_method !== '' ? ' via ' . $o->ship_method : '');
+    if ($o->ship_method !== '') $L[] = 'Ship via: ' . $o->ship_method;
     $L[] = '';
     $L[] = 'Items:';
     foreach ($items as $i => $it) $L[] = ($i + 1) . '. ' . bta_pv_line_text($it, $artby);
@@ -736,12 +733,33 @@ function bta_pv_production_note($o, $account, $items, $art, $artby) {
 }
 
 /** One order line as a Printavo line item group: the garment plus its imprints. */
-function bta_pv_group_payload($it, $artby, $line_type, $pos) {
+/** The blanks line for an order: supplier, their PO, arrival. */
+function bta_pv_blanks_text($o) {
+    $arr = $o->expected_arrival ? date_i18n('M j, Y', strtotime($o->expected_arrival)) : '';
+    return trim($o->supplier_name . ($o->supplier_po !== '' ? ', PO ' . $o->supplier_po : '') . ($arr !== '' ? ', arriving ' . $arr : ''), ', ');
+}
+
+function bta_pv_group_payload($it, $artby, $line_type, $pos, $o = null) {
     $extra = array();
     $sizes = bta_pv_sizes(bta_item_sizes($it), $line_type, $extra);
-    $desc  = trim($it->brand . ' ' . $it->style_name);
-    if ($extra) $desc .= ' (sizes: ' . implode(', ', $extra) . ')';
-    if ($it->notes !== '') $desc .= ' — ' . $it->notes;
+
+    // Description, laid out the way the shop reads it:
+    //   Sport-Tek Hooded Raglan Jacket. JST73
+    //   LEFT CHEST:
+    //   (art name)
+    //   Blanks: Sanmar, PO 52446331, arriving Oct 2, 2026
+    $emb_names = bta_emb_types();
+    $D = array(trim($it->brand . ' ' . $it->style_name));
+    if ($extra) $D[] = 'Sizes: ' . implode(', ', $extra);
+    foreach (bta_item_locations($it) as $l) {
+        $a = (int) $l['art_id'];
+        $D[] = strtoupper($l['placement']) . ':' . "\n"
+             . ($a && isset($artby[$a]) ? $artby[$a]->label : '(no art picked)')
+             . (!empty($l['emb']) && isset($emb_names[$l['emb']]) ? ' (' . $emb_names[$l['emb']] . ' embroidery)' : '');
+    }
+    if ($o && bta_pv_blanks_text($o) !== '') $D[] = 'Blanks: ' . bta_pv_blanks_text($o);
+    if ($it->notes !== '') $D[] = 'Note: ' . $it->notes;
+    $desc = implode("\n", $D);
 
     $decs = bta_decorations();
     $deco = isset($decs[$it->decoration]) ? $decs[$it->decoration] : $it->decoration;
@@ -874,7 +892,7 @@ function bta_pv_create_quote($o) {
     $first_err = null;
     if ($nested_line !== '' && $items) {
         $groups = array();
-        foreach ($items as $i => $it) $groups[] = bta_pv_group_payload($it, $artby, $nested_line, $i + 1);
+        foreach ($items as $i => $it) $groups[] = bta_pv_group_payload($it, $artby, $nested_line, $i + 1, $o);
         foreach ($ladder as $drop) {
             $try = array_diff_key($quote, array_flip($drop));
             $try['lineItemGroups'] = $groups;
@@ -917,7 +935,7 @@ function bta_pv_create_quote($o) {
     if (!$nested) {
         $line_type = bta_pv_arg_type('lineItemCreate', 'input', 'LineItemCreateInput');
         foreach ($items as $i => $it) {
-            $err = bta_pv_add_group($qid, bta_pv_group_payload($it, $artby, $line_type, $i + 1), $dropped);
+            $err = bta_pv_add_group($qid, bta_pv_group_payload($it, $artby, $line_type, $i + 1, $o), $dropped);
             if (is_wp_error($err)) $warnings[] = 'Item ' . ($i + 1) . ' (' . $it->style_no . ') did not go in: ' . $err->get_error_message();
         }
     }
