@@ -745,8 +745,10 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos, $o = null) {
 
     // Description, laid out the way the shop reads it:
     //   Sport-Tek Hooded Raglan Jacket. JST73
+    //
     //   LEFT CHEST:
-    //   (art name)
+    //   left chest (Logo embroidery)
+    //
     //   Blanks: Sanmar, PO 52446331, arriving Oct 2, 2026
     $emb_names = bta_emb_types();
     $D = array(trim($it->brand . ' ' . $it->style_name));
@@ -759,7 +761,7 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos, $o = null) {
     }
     if ($o && bta_pv_blanks_text($o) !== '') $D[] = 'Blanks: ' . bta_pv_blanks_text($o);
     if ($it->notes !== '') $D[] = 'Note: ' . $it->notes;
-    $desc = implode("\n", $D);
+    $desc = implode("\n\n", $D);   // a blank line between each part, as the shop lays it out
 
     $decs = bta_decorations();
     $deco = isset($decs[$it->decoration]) ? $decs[$it->decoration] : $it->decoration;

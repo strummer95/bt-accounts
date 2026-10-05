@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.6**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.7**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -117,6 +117,9 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   weekend or after 5pm Friday counts from the next Monday (`bta_min_in_hands()`). Printavo
   `customerDueAt` = `bta_customer_due()` (in-hands held to that rule), `dueAt` (production) =
   `bta_production_due()`, the business day before. No holiday calendar.
+- Line item description format is Dillon's, exactly: garment name, blank line, `LOCATION:` /
+  art name per location (blank line between), blank line, `Blanks: supplier, PO x, arriving date`.
+  Production note does not repeat end customer, PO, ship-to or blanks (shown elsewhere in Printavo).
 - Order lines now have `locations` (JSON list of placement / art_id / emb) plus `unit_price` and
   `price_note`. `placement` and `art_id` still hold a summary and the first logo for old readers.
   Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.
