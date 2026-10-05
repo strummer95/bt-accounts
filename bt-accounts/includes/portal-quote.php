@@ -46,8 +46,9 @@ function bta_portal_quote($user, $account) {
     echo '<div id="btaEmbOpts" hidden>';
     echo '<label class="bta-label" style="margin-top:18px">Embroidery type</label>';
     echo '<div class="bta-seg bta-seg-wrap" id="btaEmbType">';
-    echo '<button type="button" class="bta-seg-btn is-on" data-v="text">Text</button>';
-    echo '<button type="button" class="bta-seg-btn" data-v="logo">Logo</button>';
+    // Logo first and on: it is what almost every account embroidery job is.
+    echo '<button type="button" class="bta-seg-btn is-on" data-v="logo">Logo</button>';
+    echo '<button type="button" class="bta-seg-btn" data-v="text">Text</button>';
     echo '<button type="button" class="bta-seg-btn" data-v="hard">Hard to handle</button>';
     echo '</div></div>';
 
