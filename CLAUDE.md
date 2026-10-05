@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.1**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.2**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -105,6 +105,11 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   (`contactId` beside `contact`, `zip` beside `zipCode`) are offered together on purpose. If
   introspection is off it falls back to the documented names (`bta_pv_blind_sig`). Everything is
   also in the production note as text. Verify against the first real quote and tighten then.
+- Confirmed against live Printavo (0.12.1–0.12.2): tags must start with `#` (`#BTAccounts`); the
+  contact lookup lands quotes on Sasha's customer. PO (`visualPoNumber`) and `customerDueAt` are
+  set by `quoteUpdate` straight after create if `quoteCreate` won't take them. Line item Category:
+  print → Digi Print, embroidery → Embroidery (matched by name, overridable in settings).
+- In-hands date must be at least 7 days after submission (`bta_min_in_hands()`), form + server.
 - Order lines now have `locations` (JSON list of placement / art_id / emb) plus `unit_price` and
   `price_note`. `placement` and `art_id` still hold a summary and the first logo for old readers.
   Line prices come from `bta_price_order_line()`: the Quote tab's engine on the account's rates.

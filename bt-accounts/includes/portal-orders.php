@@ -194,7 +194,8 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
     echo '<div class="bta-card"><h2 class="bta-h2">Order details</h2><div class="bta-grid">';
     bta_field('end_customer', 'Business / organisation this order is for', $v('end_customer'), true);
     bta_field('account_po', 'Your PO number', $v('account_po'), !empty($account->requires_po));
-    bta_field('in_hands_date', 'In-hands date', $v('in_hands_date'), false, 'date');
+    bta_field('in_hands_date', 'In-hands date', $v('in_hands_date'), false, 'date', bta_min_in_hands(),
+        'At least a week out: ' . date('M j', strtotime(bta_min_in_hands() . ' 12:00:00')) . ' or later. Need it sooner? Call the shop.');
     echo '</div></div>';
 
     // Blanks
@@ -256,11 +257,18 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
     )) . '</script>';
 }
 
-function bta_field($name, $label, $value = '', $required = false, $type = 'text') {
+function bta_field($name, $label, $value = '', $required = false, $type = 'text', $min = '', $hint = '') {
     echo '<div class="bta-field">';
     echo '<label class="bta-label" for="f-' . esc_attr($name) . '">' . wp_kses($label, array('br'=>array())) . ($required ? ' <span class="bta-req">*</span>' : '') . '</label>';
-    echo '<input class="bta-input" id="f-' . esc_attr($name) . '" name="' . esc_attr($name) . '" type="' . esc_attr($type) . '" value="' . esc_attr($value) . '"' . ($required ? ' required' : '') . '>';
+    echo '<input class="bta-input" id="f-' . esc_attr($name) . '" name="' . esc_attr($name) . '" type="' . esc_attr($type) . '" value="' . esc_attr($value) . '"'
+       . ($min !== '' ? ' min="' . esc_attr($min) . '"' : '') . ($required ? ' required' : '') . '>';
+    if ($hint !== '') echo '<p class="bta-hint" style="margin:6px 0 0">' . esc_html($hint) . '</p>';
     echo '</div>';
+}
+
+/** Earliest in-hands date an account can ask for: one full week from today. */
+function bta_min_in_hands() {
+    return wp_date('Y-m-d', time() + 7 * DAY_IN_SECONDS);
 }
 
 function bta_art_row($i) {
@@ -306,6 +314,9 @@ function bta_handle_order_submit($user, $account) {
         'notes'            => isset($_POST['notes']) ? sanitize_textarea_field(wp_unslash($_POST['notes'])) : '',
     );
 
+    if ($data['in_hands_date'] !== '' && $data['in_hands_date'] < bta_min_in_hands()) {
+        $errors[] = 'The in-hands date has to be at least a week out: ' . date('M j, Y', strtotime(bta_min_in_hands() . ' 12:00:00')) . ' or later. If you need it sooner, call the shop.';
+    }
     if ($data['end_customer'] === '') $errors[] = 'Tell us which business or organisation the order is for.';
     if (!empty($account->requires_po) && $data['account_po'] === '') $errors[] = 'A PO number is required on every order.';
 

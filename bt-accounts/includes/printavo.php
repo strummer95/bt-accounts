@@ -299,6 +299,7 @@ function bta_pv_blind_sig($mutation, $arg) {
         'imprintCreate'        => array('lineItemGroupId' => 'ID!', 'input' => 'ImprintInput!'),
         'productionFileCreate' => array('parentId' => 'ID!', 'publicFileUrl' => 'String!'),
         'statusUpdate'         => array('parentId' => 'ID!', 'statusId' => 'ID!'),
+        'quoteUpdate'          => array('id' => 'ID!', 'input' => 'QuoteUpdateInput!'),
     );
     return isset($map[$mutation][$arg]) ? $map[$mutation][$arg] : '';
 }
@@ -310,7 +311,7 @@ function bta_pv_blind_sig($mutation, $arg) {
  * documented names are sent.
  */
 function bta_pv_alt_keys() {
-    return array('contactId', 'customerId', 'poNumber', 'state', 'zip', 'country', 'quoteId', 'orderId',
+    return array('contactId', 'customerId', 'categoryId', 'poNumber', 'state', 'zip', 'country', 'quoteId', 'orderId',
                  'fileUrl', 'url', 'name', 'parentId', 'lineItemGroupId');
 }
 
@@ -334,7 +335,7 @@ function bta_pv_real_drops($dropped) {
         if (in_array($leaf, $alts, true)) continue;
         if (preg_match('/(imprints\[\d+\]|imprintCreate\.input)\.(description|position)$/', $p)) continue;
         if ($p === 'quoteCreate.input.statusId') continue;   // set by statusUpdate instead
-        if (preg_match('/^(statusUpdate|productionFileCreate)\.(id|input|url|fileUrl)/', $p)) continue;
+        if (preg_match('/^(statusUpdate|productionFileCreate|quoteUpdate)\.(id|input|url|fileUrl|poNumber)/', $p)) continue;
         $out[] = $p;
     }
     return array_values($out);
@@ -475,6 +476,62 @@ function bta_pv_account_contact($account) {
     $m = array_merge($m, $r);
     bta_pv_save_account_map($account->id, $m);
     return $m;
+}
+
+/**
+ * Line item categories in Printavo (Digi Print, Embroidery...). The query's
+ * name is read from the schema rather than assumed.
+ */
+function bta_pv_fetch_categories() {
+    $q = bta_pv_type('Query');
+    $field = 'categories';
+    if ($q) {
+        $field = '';
+        foreach (array_keys($q['fields']) as $f) {
+            if (preg_match('/categor/i', $f)) { $field = $f; break; }
+        }
+        if ($field === '') return new WP_Error('bta_pv_nocat', 'Printavo does not list line item categories through its API.');
+    }
+    $args = ($q && isset($q['args'][$field]['first'])) || !$q ? '(first: 100)' : '';
+    $d = bta_pv_gql('{ ' . $field . $args . ' { edges { node { id name } } } }');
+    if (is_wp_error($d)) {
+        // Some lists are plain arrays rather than connections.
+        $d = bta_pv_gql('{ ' . $field . ' { id name } }');
+        if (is_wp_error($d)) return $d;
+        $rows = isset($d[$field]) ? (array) $d[$field] : array();
+    } else {
+        $rows = array();
+        foreach ((array) (isset($d[$field]['edges']) ? $d[$field]['edges'] : array()) as $e) $rows[] = isset($e['node']) ? $e['node'] : array();
+    }
+    $out = array();
+    foreach ($rows as $n) {
+        if (!empty($n['id'])) $out[] = array('id' => (string) $n['id'], 'name' => (string) $n['name']);
+    }
+    update_option('bta_pv_categories', $out, false);
+    return $out;
+}
+
+/**
+ * Printavo category id for a decoration. The setting wins; otherwise the
+ * category whose name matches (print → Digi Print, embroidery → Embroidery).
+ */
+function bta_pv_category_for($decoration) {
+    $key = $decoration === 'embroidery' ? 'embroidery' : 'print';
+    $set = (string) get_option('bta_pv_cat_' . $key, '');
+    if ($set !== '') return $set;
+
+    $cats = get_option('bta_pv_categories', null);
+    if ($cats === null && bta_pv_configured()) {
+        $cats = bta_pv_fetch_categories();
+        if (is_wp_error($cats)) { update_option('bta_pv_categories', array(), false); $cats = array(); }
+    }
+    $want = $key === 'embroidery' ? array('embroidery') : array('digiprint', 'digitalprint', 'print');
+    foreach ($want as $w) {
+        foreach ((array) $cats as $c) {
+            if (strpos(bta_pv_fold(preg_replace('/^\s*\d+\.\s*/', '', $c['name'])), $w) !== false) return $c['id'];
+        }
+    }
+    return '';
 }
 
 /** Statuses in Printavo, for choosing where new quotes land. */
@@ -650,6 +707,11 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos) {
         'sizes'       => $sizes,
         'position'    => 1,
     );
+    $cat = bta_pv_category_for($it->decoration);
+    if ($cat !== '') {
+        $line['category']   = array('id' => $cat);
+        $line['categoryId'] = $cat;
+    }
 
     return array('position' => $pos, 'lineItems' => array($line), 'imprints' => $imprints);
 }
@@ -763,6 +825,21 @@ function bta_pv_create_quote($o) {
 
     $qid = isset($q['id']) ? (string) $q['id'] : '';
     if ($qid === '') return new WP_Error('bta_pv_noid', 'Printavo made the quote but did not say its id.');
+
+    // PO and dates: anything quoteCreate would not take is set with
+    // quoteUpdate straight after, so the PO and customer due date always land.
+    $later = array();
+    foreach (array('visualPoNumber' => $o->account_po, 'customerDueAt' => $due, 'dueAt' => $due_at) as $k => $val) {
+        if ($val !== '' && in_array('quoteCreate.input.' . $k, $dropped, true)) $later[$k] = $val;
+    }
+    if ($later) {
+        $u = bta_pv_mutate('quoteUpdate', array('id' => $qid, 'input' => $later + array('poNumber' => $o->account_po)), 'id', $dropped);
+        if (is_wp_error($u)) {
+            $warnings[] = 'The PO and due dates could not be set (' . $u->get_error_message() . '). They are in the production note.';
+        } else {
+            $dropped = array_values(array_diff($dropped, array_map(function ($k) { return 'quoteCreate.input.' . $k; }, array_keys($later))));
+        }
+    }
 
     if (!$nested) {
         $line_type = bta_pv_arg_type('lineItemCreate', 'input', 'LineItemCreateInput');
@@ -997,12 +1074,15 @@ function bta_pv_handle_admin_post($action) {
         if (!empty($_POST['pv_forget_token'])) delete_option('bta_pv_token');
         update_option('bta_pv_status_id', sanitize_text_field(wp_unslash(isset($_POST['pv_status']) ? $_POST['pv_status'] : '')));
         update_option('bta_pv_auto', !empty($_POST['pv_auto']) ? 1 : 0);
+        update_option('bta_pv_cat_print', sanitize_text_field(wp_unslash(isset($_POST['pv_cat_print']) ? $_POST['pv_cat_print'] : '')));
+        update_option('bta_pv_cat_embroidery', sanitize_text_field(wp_unslash(isset($_POST['pv_cat_embroidery']) ? $_POST['pv_cat_embroidery'] : '')));
         if ($old_email !== bta_pv_email() || $token !== '') bta_pv_forget_schema();
         bta_admin_notice('Printavo settings saved.' . (bta_pv_configured() ? ' Press Test connection to check them.' : ''));
     }
 
     if ($action === 'test_printavo') {
         bta_pv_forget_schema();
+        delete_option('bta_pv_categories');
         $st = bta_pv_fetch_statuses();
         if (is_wp_error($st)) {
             update_option('bta_pv_last_test', array('ok' => 0, 'at' => current_time('mysql'), 'msg' => $st->get_error_message()), false);
@@ -1010,6 +1090,10 @@ function bta_pv_handle_admin_post($action) {
             return;
         }
         $schema = bta_pv_type('Mutation') ? 'Printavo described its fields, so only fields it accepts are sent.' : 'Printavo would not describe its fields, so quotes are sent on the documented field names.';
+        $cats = bta_pv_fetch_categories();
+        $schema .= is_wp_error($cats) ? ' Categories: ' . $cats->get_error_message() : ' ' . count($cats) . ' line item categories found.';
+        $qt = bta_pv_type(bta_pv_arg_type('quoteCreate', 'input', 'QuoteCreateInput'));
+        if ($qt) $schema .= ' A new quote takes: ' . implode(', ', array_keys($qt['fields'])) . '.';
         update_option('bta_pv_last_test', array('ok' => 1, 'at' => current_time('mysql'), 'msg' => count($st) . ' statuses found. ' . $schema), false);
         bta_admin_notice('Connected to Printavo. ' . count($st) . ' statuses found. ' . $schema);
     }
@@ -1067,6 +1151,17 @@ function bta_pv_admin_section() {
     }
     echo '</select>';
     echo '<p class="description">' . ($statuses ? 'A status of their own, like &ldquo;Portal Order &ndash; Review&rdquo;, makes them easy to spot.' : 'Save the email and token, then Test connection to load your Printavo statuses here.') . '</p></td></tr>';
+
+    $cats = get_option('bta_pv_categories', array());
+    foreach (array('print' => 'Print items go under', 'embroidery' => 'Embroidery items go under') as $k => $lab) {
+        $cur = (string) get_option('bta_pv_cat_' . $k, '');
+        echo '<tr><th><label for="bta-pv-cat-' . $k . '">' . esc_html($lab) . '</label></th><td><select id="bta-pv-cat-' . $k . '" name="pv_cat_' . $k . '">';
+        echo '<option value="">Match by name (' . ($k === 'print' ? 'Digi Print' : 'Embroidery') . ')</option>';
+        foreach ((array) $cats as $c) {
+            echo '<option value="' . esc_attr($c['id']) . '"' . selected($cur, $c['id'], false) . '>' . esc_html($c['name']) . '</option>';
+        }
+        echo '</select></td></tr>';
+    }
 
     echo '<tr><th>Sending</th><td><label><input type="checkbox" name="pv_auto" value="1"' . checked(get_option('bta_pv_auto', 1), 1, false) . '> Send each order to Printavo the moment it is submitted</label>';
     echo '<p class="description">Off: nothing goes automatically; staff press <em>Send to Printavo</em> on the order in <em>Other &rarr; Accounts</em>.</p></td></tr>';
