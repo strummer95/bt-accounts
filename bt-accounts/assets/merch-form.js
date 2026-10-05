@@ -103,7 +103,8 @@
       + '<div class="bta-tiles">' + p.art.map(function (a) {
         return '<button type="button" class="bta-tile" data-pick-art="' + a.id + '">'
           + '<div class="bta-tile-img">' + (p.img ? mock(p.img, artFor(a, 'Black') || a.img, zoneFor(p, a), 'Design') : pic(a.img, 'Design')) + '</div>'
-          + '<div class="bta-tile-name">' + esc(a.name) + '</div></button>';
+          + '<div class="bta-tile-name">' + esc(a.name) + '</div>'
+          + (a.back ? '<div class="bta-tile-sub">+ ' + esc(a.back.name) + ' on the back</div>' : '') + '</button>';
       }).join('') + '</div>';
     card._keep = keep || null;
     recalc();
@@ -116,13 +117,10 @@
     var design = null;
     p.art.forEach(function (a) { if (String(a.id) === String(art)) design = a; });
     var qty = (saved && saved.qty) || {};
-    // Optional second print somewhere else on the garment (e.g. tour dates on the back).
-    var others = p.art.filter(function (a) { return design && a.id !== design.id && a.zone !== design.zone; });
-    var extraId = saved && saved.extra ? String(saved.extra) : '';
-    var extra = null;
-    others.forEach(function (a) { if (String(a.id) === extraId) extra = a; });
-    if (!extra) extraId = '';
-    card.dataset.extra = extraId;
+    // A design can come with its own back print (the tour fronts carry the
+    // tour dates). It is part of the design, not a separate choice.
+    var extra = design && design.back ? design.back : null;
+    card.dataset.extra = extra ? String(extra.id) : '';
     // Colours every chosen design is allowed on (white-text art: black shirts only).
     var colors = (p.colors.length ? p.colors : ['']).filter(function (c) {
       return [design, extra].every(function (a) { return !a || !a.only || !a.only.length || !c || a.only.indexOf(c) !== -1; });
@@ -143,14 +141,9 @@
           + 'Design: <strong>' + esc(design.name) + '</strong>' + (design.place ? ' &middot; ' + esc(design.place) : '')
           + (p.art.length > 1 ? ' <button type="button" class="bta-linkbtn" data-act="design">Change</button>' : '') + '</div>'
         : '<div class="bta-tile-sub">Design: the shop will confirm it with you.</div>')
-      + (others.length ? '<div class="bta-mcard-extra"><label>Second print '
-          + '<select class="bta-input bta-extra-sel" name="' + n + '[extra]"><option value="">None</option>'
-          + others.map(function (a) {
-            return '<option value="' + a.id + '"' + (String(a.id) === extraId ? ' selected' : '') + '>' + esc(a.name) + (a.place ? ' (' + esc(a.place) + ')' : '') + '</option>';
-          }).join('') + '</select></label>'
-          + (extra ? (extra.img ? '<img src="' + esc(extra.img) + '" alt="">' : '')
-            + '<span class="bta-tile-sub">' + (p.extra !== null && p.extra !== undefined ? '+' + money(p.extra) + ' each' : 'priced by the shop') + '</span>' : '')
-          + '</div>' : '')
+      + (extra ? '<div class="bta-mcard-extra">' + (extra.img ? '<img src="' + esc(extra.img) + '" alt="">' : '')
+          + 'Back: <strong>' + esc(extra.name) + '</strong>'
+          + '<span class="bta-tile-sub">' + (p.extra !== null && p.extra !== undefined ? '+' + money(p.extra) + ' each' : 'back print priced by the shop') + '</span></div>' : '')
       + (limited ? '<div class="bta-tile-sub" style="margin-top:6px">Only on ' + esc(colors.join(', ') || 'none of this item\'s colours') + ' with this design.</div>' : '')
       + '</div></div>'
       + '<div class="bta-qtywrap"><table class="bta-qtygrid"><thead><tr><th>Colour</th>'
@@ -218,7 +211,7 @@
     var card = t.closest('.bta-mcard');
     if (t.dataset.pickProduct) return showDesigns(card, byId[t.dataset.pickProduct]);
     if (t.dataset.pickArt) {
-      return showGrid(card, byId[card.dataset.product], { art: t.dataset.pickArt, extra: card.dataset.extra, qty: card._keep });
+      return showGrid(card, byId[card.dataset.product], { art: t.dataset.pickArt, qty: card._keep });
     }
     if (t.dataset.act === 'product') return showProducts(card);
     if (t.dataset.act === 'design') return showDesigns(card, byId[card.dataset.product], gridQty(card));
@@ -238,11 +231,6 @@
   }
 
   wrap.addEventListener('input', recalc);
-  wrap.addEventListener('change', function (e) {
-    if (!e.target.classList.contains('bta-extra-sel')) return;
-    var card = e.target.closest('.bta-mcard');
-    showGrid(card, byId[card.dataset.product], { art: card.querySelector('input[name$="[art]"]').value, extra: e.target.value, qty: gridQty(card) });
-  });
   addBtn.addEventListener('click', function () {
     var card = addCard(null);
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });

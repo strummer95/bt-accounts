@@ -13,10 +13,12 @@
  * v7: Leonid's Deep in the Heart of Texas and Make Me Smile Tour 2026 designs.
  * v8: garment-colour limits on art, a second print location per line with its
  *     own price per product, and Leonid's Tour 2026 record and Fall 2026 dates.
+ * v9: a design can come with its own back print (the tour fronts carry the
+ *     Fall 2026 dates); a back that belongs to a front is not offered alone.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 8);
+define('BTA_SCHEMA_VERSION', 9);
 
 function bta_table($name) {
     global $wpdb;
@@ -243,6 +245,7 @@ function bta_install_schema() {
         notes TEXT NULL,
         variants MEDIUMTEXT NULL,
         garment_colors VARCHAR(255) NOT NULL DEFAULT '',
+        back_art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         added_by VARCHAR(20) NOT NULL DEFAULT 'shop',
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -280,6 +283,22 @@ function bta_install_schema() {
     bta_seed_bottle_cap();
     bta_seed_leonid_designs();
     bta_seed_leonid_tour();
+    bta_seed_leonid_tour_backs();
+}
+
+/** Dillon: the tour dates only go on the back of the tour-front shirts. */
+function bta_seed_leonid_tour_backs() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_backs_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib   = bta_table('art_library');
+    $dates = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, 'Fall 2026 Tour Dates'));
+    if (!$dates) return;
+    foreach (array('Make Me Smile Tour 2026 (Van)', 'Make Me Smile Tour 2026 (Record)') as $front) {
+        $wpdb->update($lib, array('back_art_id' => $dates), array('account_id' => $acct_id, 'name' => $front));
+    }
+    update_option('bta_seed_leonid_backs_done', 1);
 }
 
 /**

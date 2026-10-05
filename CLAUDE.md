@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.16.1**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.2**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -184,6 +184,12 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   line priced by the shop). Seeded by `bta_seed_leonid_tour()`: Tour 2026 (Record) Full Front, Fall
   2026 Tour Dates Full Back; the earlier Tour 2026 renamed "(Van)". No back photos, so a back-only
   design shows as the art itself instead of a mockup.
+- 0.16.2 (schema 9), Dillon: "the tour back only goes on the back of the tour front shirts; the
+  rest are a single front print." So no free second-print picker: `art_library.back_art_id` pairs a
+  front with its back (`bta_art_back()`); the server takes the back from the chosen design, never
+  from the form. A design that is some other design's back is hidden from the choices. Seeded by
+  `bta_seed_leonid_tour_backs()`: Tour 2026 (Van) and (Record) → Fall 2026 Tour Dates. The dates are
+  Black only, so the tour shirts are Black only.
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

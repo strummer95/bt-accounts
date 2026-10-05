@@ -372,6 +372,7 @@ function bta_save_library_art($account_id, $args, $id = 0) {
         'placement'   => sanitize_text_field(isset($args['placement']) ? $args['placement'] : ''),
         'colors'      => sanitize_text_field(isset($args['colors']) ? $args['colors'] : ''),
         'garment_colors' => implode(',', array_filter(array_map('trim', explode(',', sanitize_text_field(isset($args['garment_colors']) ? $args['garment_colors'] : ''))), 'strlen')),
+        'back_art_id'    => isset($args['back_art_id']) && (int) $args['back_art_id'] !== (int) $id ? (int) $args['back_art_id'] : 0,
         'notes'       => sanitize_textarea_field(isset($args['notes']) ? $args['notes'] : ''),
         'preview_url' => esc_url_raw(isset($args['preview_url']) ? $args['preview_url'] : ''),
         'status'      => (isset($args['status']) && $args['status'] === 'archived') ? 'archived' : 'active',
@@ -463,9 +464,10 @@ function bta_art_version($a, $color) {
  * a hat placement, a shirt needs one that isn't. No placement set = anywhere.
  */
 function bta_art_fits($p, $a) {
-    if (bta_art_garment_colors($a) && bta_product_colors($p)) {
+    $back = bta_art_back($a);
+    if ((bta_art_garment_colors($a) || ($back && bta_art_garment_colors($back))) && bta_product_colors($p)) {
         $any = false;
-        foreach (bta_product_colors($p) as $c) if (bta_art_on_color($a, $c)) { $any = true; break; }
+        foreach (bta_product_colors($p) as $c) if (bta_art_on_color($a, $c) && (!$back || bta_art_on_color($back, $c))) { $any = true; break; }
         if (!$any) return false;
     }
     $places = array_filter(array_map('trim', explode(',', (string) $a->placement)), 'strlen');
@@ -485,6 +487,14 @@ function bta_art_on_color($a, $color) {
     if (!$only) return true;
     foreach ($only as $c) if (strcasecmp($c, (string) $color) === 0) return true;
     return false;
+}
+
+/** The back print that comes with a design, if it has one and it is active. */
+function bta_art_back($a, $library = null) {
+    $id = isset($a->back_art_id) ? (int) $a->back_art_id : 0;
+    if (!$id) return null;
+    $b = ($library !== null && isset($library[$id])) ? $library[$id] : bta_get_library_art($id);
+    return ($b && $b->status === 'active' && (int) $b->account_id === (int) $a->account_id) ? $b : null;
 }
 
 /** Whether a product goes on the head rather than the body. */
@@ -510,9 +520,13 @@ function bta_line_placement($p, $art) {
 /** The art choices for one product: its own list, or the whole active library. */
 function bta_product_art_choices($p, $library) {
     $ids = bta_product_art_ids($p);
+    // A back print that comes with a front design is never picked by itself.
+    $backs = array();
+    foreach ($library as $a) if ($a->status === 'active' && !empty($a->back_art_id)) $backs[(int) $a->back_art_id] = true;
     $out = array();
     foreach ($library as $id => $a) {
         if ($a->status !== 'active') continue;
+        if (isset($backs[(int) $id])) continue;
         if ($ids && !in_array((int) $id, $ids, true)) continue;
         if (!bta_art_fits($p, $a)) continue;
         $out[(int) $id] = $a;

@@ -265,6 +265,10 @@ function bta_merch_form_products($account, $type) {
                 'place'    => bta_line_placement($p, $a),
                 'zone'     => bta_location_key(bta_line_placement($p, $a)),
                 'only'     => bta_art_garment_colors($a),
+                'back'     => ($bk = bta_art_back($a, $library)) ? array(
+                    'id' => (int) $bk->id, 'name' => (string) $bk->name, 'img' => bta_art_preview($bk),
+                    'place' => bta_line_placement($p, $bk), 'only' => bta_art_garment_colors($bk),
+                ) : null,
                 'versions' => (object) $vers,
             );
         }
@@ -370,7 +374,6 @@ function bta_merch_order_form($user, $account, $type, $errors, $posted) {
             $lines[] = array(
                 'product' => isset($ln['product']) ? (int) $ln['product'] : 0,
                 'art'     => isset($ln['art']) && is_scalar($ln['art']) ? (int) $ln['art'] : 0,
-                'extra'   => isset($ln['extra']) && is_scalar($ln['extra']) ? (int) $ln['extra'] : 0,
                 'qty'     => (object) $qty,
             );
         }
@@ -449,13 +452,11 @@ function bta_handle_merch_submit($user, $account, $type) {
         if (!isset($choices[$art])) $art = count($choices) === 1 ? (int) key($choices) : 0;
         if (!$art && count($choices) > 1) { $errors[] = 'Pick the design for ' . $p->name . '.'; continue; }
 
-        // An optional second design at a different location (a back print).
-        $extra = isset($ln['extra']) && is_scalar($ln['extra']) ? (int) $ln['extra'] : 0;
-        if ($extra && (!isset($choices[$extra]) || $extra === $art
-            || bta_location_key(bta_line_placement($p, $choices[$extra])) === bta_location_key(bta_line_placement($p, $choices[$art] ?? null)))) {
-            $errors[] = 'The second print on ' . $p->name . ' has to go somewhere other than the first.';
-            continue;
-        }
+        // A design that comes with its own back print (the tour fronts carry
+        // the tour dates) brings it along; nothing else gets a second print.
+        $back  = $art && isset($choices[$art]) ? bta_art_back($choices[$art], $library) : null;
+        $extra = $back ? (int) $back->id : 0;
+        if ($back) $choices[$extra] = $back;
 
         $allowed = bta_product_sizes($p);
         $colors  = bta_product_colors($p);
