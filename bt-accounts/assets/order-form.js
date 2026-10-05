@@ -373,6 +373,15 @@
 
   addItem();   // always start with one item row
 
+  // In-hands has to be a weekday; the server checks too, this just says so sooner.
+  var ih = document.getElementById('f-in_hands_date');
+  if (ih) ih.addEventListener('change', function () {
+    var d = ih.value ? new Date(ih.value + 'T12:00:00') : null;
+    var wkend = d && (d.getDay() === 0 || d.getDay() === 6);
+    ih.setCustomValidity(wkend ? 'Pick a weekday. We don\'t deliver on weekends.' : '');
+    if (wkend) ih.reportValidity();
+  });
+
   // Guard against a mis-click losing a part-filled order.
   var dirty = false;
   document.getElementById('btaOrderForm').addEventListener('input', function () { dirty = true; });

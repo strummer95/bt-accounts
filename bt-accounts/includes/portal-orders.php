@@ -195,7 +195,7 @@ function bta_portal_new_order($user, $account, $errors = array(), $posted = arra
     bta_field('end_customer', 'Business / organisation this order is for', $v('end_customer'), true);
     bta_field('account_po', 'Your PO number', $v('account_po'), !empty($account->requires_po));
     bta_field('in_hands_date', 'In-hands date', $v('in_hands_date'), false, 'date', bta_min_in_hands(),
-        'At least a week out: ' . date('M j', strtotime(bta_min_in_hands() . ' 12:00:00')) . ' or later. Need it sooner? Call the shop.');
+        'A weekday at least a week out: ' . bta_ymd_label(bta_min_in_hands()) . ' or later. Need it sooner? Call the shop.');
     echo '</div></div>';
 
     // Blanks
@@ -266,10 +266,6 @@ function bta_field($name, $label, $value = '', $required = false, $type = 'text'
     echo '</div>';
 }
 
-/** Earliest in-hands date an account can ask for: one full week from today. */
-function bta_min_in_hands() {
-    return wp_date('Y-m-d', time() + 7 * DAY_IN_SECONDS);
-}
 
 function bta_art_row($i) {
     echo '<div class="bta-artrow">';
@@ -315,7 +311,9 @@ function bta_handle_order_submit($user, $account) {
     );
 
     if ($data['in_hands_date'] !== '' && $data['in_hands_date'] < bta_min_in_hands()) {
-        $errors[] = 'The in-hands date has to be at least a week out: ' . date('M j, Y', strtotime(bta_min_in_hands() . ' 12:00:00')) . ' or later. If you need it sooner, call the shop.';
+        $errors[] = 'The in-hands date has to be at least a week out: ' . bta_ymd_label(bta_min_in_hands(), true) . ' or later. If you need it sooner, call the shop.';
+    } elseif ($data['in_hands_date'] !== '' && !bta_is_business_day($data['in_hands_date'])) {
+        $errors[] = 'The in-hands date has to be a weekday. ' . bta_ymd_label($data['in_hands_date'], true) . ' is a weekend; the next weekday is ' . bta_ymd_label(bta_business_day_on_or_after($data['in_hands_date']), true) . '.';
     }
     if ($data['end_customer'] === '') $errors[] = 'Tell us which business or organisation the order is for.';
     if (!empty($account->requires_po) && $data['account_po'] === '') $errors[] = 'A PO number is required on every order.';

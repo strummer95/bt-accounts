@@ -145,6 +145,64 @@ function bta_item_sizes($item) {
     return is_array($s) ? $s : array();
 }
 
+/* ── Due dates ───────────────────────────────────────────────────────────── */
+
+function bta_ymd_add($ymd, $days) {
+    return gmdate('Y-m-d', strtotime($ymd . ' 12:00:00 UTC') + $days * DAY_IN_SECONDS);
+}
+
+function bta_is_business_day($ymd) {
+    return (int) gmdate('N', strtotime($ymd . ' 12:00:00 UTC')) <= 5;
+}
+
+/** The day itself if it is Mon–Fri, otherwise the Monday after. */
+function bta_business_day_on_or_after($ymd) {
+    while (!bta_is_business_day($ymd)) $ymd = bta_ymd_add($ymd, 1);
+    return $ymd;
+}
+
+function bta_business_day_before($ymd) {
+    $ymd = bta_ymd_add($ymd, -1);
+    while (!bta_is_business_day($ymd)) $ymd = bta_ymd_add($ymd, -1);
+    return $ymd;
+}
+
+/**
+ * Earliest in-hands date for an order submitted at $when (site time, mysql
+ * format; default now): one full week out. An order placed on a weekend or
+ * after 5pm Friday counts from the next business day, so it lands a week
+ * from that Monday.
+ */
+function bta_min_in_hands($when = null) {
+    $t = new DateTime($when ? $when : 'now', wp_timezone());
+    $day = $t->format('Y-m-d');
+    $dow = (int) $t->format('N');
+    if ($dow >= 6 || ($dow === 5 && (int) $t->format('G') >= 17)) {
+        $day = bta_business_day_on_or_after(bta_ymd_add($day, 1));
+    }
+    return bta_business_day_on_or_after(bta_ymd_add($day, 7));
+}
+
+/**
+ * Customer due date for an order: its in-hands date, held to the one-week
+ * minimum and to a business day. Blank in-hands gets the minimum.
+ */
+function bta_customer_due($order) {
+    $min = bta_min_in_hands($order->submitted_at ? $order->submitted_at : null);
+    $due = ($order->in_hands_date && $order->in_hands_date >= $min) ? $order->in_hands_date : $min;
+    return bta_business_day_on_or_after($due);
+}
+
+/** Production due: the business day before the customer due date. */
+function bta_production_due($order) {
+    return bta_business_day_before(bta_customer_due($order));
+}
+
+/** Short date for messages, e.g. "Mon Oct 12". */
+function bta_ymd_label($ymd, $year = false) {
+    return gmdate($year ? 'D M j, Y' : 'D M j', strtotime($ymd . ' 12:00:00 UTC'));
+}
+
 /** Embroidery types the pricing engine knows, in the order the form offers them. */
 function bta_emb_types() {
     return array('logo' => 'Logo', 'text' => 'Text', 'hard' => 'Hard to handle');

@@ -520,10 +520,18 @@ function bta_pv_category_for($decoration) {
     $set = (string) get_option('bta_pv_cat_' . $key, '');
     if ($set !== '') return $set;
 
-    $cats = get_option('bta_pv_categories', null);
-    if ($cats === null && bta_pv_configured()) {
+    // Empty or never fetched: ask Printavo, once per request.
+    static $tried = false;
+    $cats = get_option('bta_pv_categories', array());
+    if (!$cats && !$tried && bta_pv_configured()) {
+        $tried = true;
         $cats = bta_pv_fetch_categories();
-        if (is_wp_error($cats)) { update_option('bta_pv_categories', array(), false); $cats = array(); }
+        if (is_wp_error($cats)) {
+            update_option('bta_pv_cat_error', $cats->get_error_message(), false);
+            $cats = array();
+        } else {
+            delete_option('bta_pv_cat_error');
+        }
     }
     $want = $key === 'embroidery' ? array('embroidery') : array('digiprint', 'digitalprint', 'print');
     foreach ($want as $w) {
@@ -660,7 +668,8 @@ function bta_pv_production_note($o, $account, $items, $art, $artby) {
          . ($o->submitted_at ? ' on ' . $d($o->submitted_at) : '') . '.';
     if ($o->end_customer !== '') $L[] = 'For: ' . $o->end_customer;
     if ($o->account_po !== '')   $L[] = 'Their PO: ' . $o->account_po;
-    if ($o->in_hands_date)       $L[] = 'In hands: ' . $d($o->in_hands_date);
+    if ($o->in_hands_date)       $L[] = 'In hands (asked for): ' . $d($o->in_hands_date);
+    $L[] = 'Customer due: ' . bta_ymd_label(bta_customer_due($o)) . ' · Production due: ' . bta_ymd_label(bta_production_due($o));
     $blanks = trim($o->supplier_name . ($o->supplier_po !== '' ? ', PO ' . $o->supplier_po : '') . ($o->expected_arrival ? ', arriving ' . $d($o->expected_arrival) : ''), ', ');
     if ($blanks !== '') $L[] = 'Blanks: ' . $blanks;
     $addr = trim(implode(', ', array_filter(array($o->ship_name, $o->ship_address1, $o->ship_address2, trim($o->ship_city . ' ' . $o->ship_state . ' ' . $o->ship_zip)))));
@@ -708,7 +717,9 @@ function bta_pv_group_payload($it, $artby, $line_type, $pos) {
         'position'    => 1,
     );
     $cat = bta_pv_category_for($it->decoration);
-    if ($cat !== '') {
+    if ($cat === '') {
+        $GLOBALS['bta_pv_cat_miss'] = true;
+    } else {
         $line['category']   = array('id' => $cat);
         $line['categoryId'] = $cat;
     }
@@ -744,11 +755,19 @@ function bta_pv_create_quote($o) {
 
     $dropped  = array();
     $warnings = array();
+    $GLOBALS['bta_pv_cat_miss'] = false;
 
-    $tz  = wp_timezone();
-    $due = $o->in_hands_date ? $o->in_hands_date : wp_date('Y-m-d', time() + 14 * DAY_IN_SECONDS);
-    if (!$o->in_hands_date) $warnings[] = 'No in-hands date on the order; the due date in Printavo is a placeholder two weeks out.';
-    $due_at = (new DateTime($due . ' 12:00:00', $tz))->format('c');
+    // Customer due = in-hands, held to a business day at least a week after
+    // submission; production due = the business day before it.
+    $tz   = wp_timezone();
+    $due  = bta_customer_due($o);
+    $prod = bta_production_due($o);
+    if (!$o->in_hands_date) {
+        $warnings[] = 'No in-hands date on the order, so the customer due date is the earliest allowed: ' . bta_ymd_label($due) . '.';
+    } elseif ($due !== $o->in_hands_date) {
+        $warnings[] = 'In-hands date ' . bta_ymd_label($o->in_hands_date) . ' was too soon or on a weekend, so the customer due date is ' . bta_ymd_label($due) . '.';
+    }
+    $due_at = (new DateTime($prod . ' 12:00:00', $tz))->format('c');
 
     $quote = array(
         'contact'         => array('id' => $who['contact_id']),
@@ -869,6 +888,13 @@ function bta_pv_create_quote($o) {
         if (is_wp_error($r)) {
             $warnings[] = 'Art "' . $a->label . '" was not attached (' . $r->get_error_message() . '). Its link is in the production note.';
         }
+    }
+
+    if (!empty($GLOBALS['bta_pv_cat_miss'])) {
+        $cats = (array) get_option('bta_pv_categories', array());
+        $warnings[] = $cats
+            ? 'Category left blank: none of Printavo\'s categories (' . implode(', ', wp_list_pluck($cats, 'name')) . ') matched. Pick them under BT Accounts → Printavo.'
+            : 'Category left blank: Printavo did not hand over its category list (' . get_option('bta_pv_cat_error', 'no reason given') . ').';
     }
 
     $number = isset($q['visualId']) ? (string) $q['visualId'] : '';
