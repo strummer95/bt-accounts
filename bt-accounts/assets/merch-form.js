@@ -105,7 +105,7 @@
       + '<div class="bta-mcard-pic">' + pic(p.img, p.brand || p.name) + '</div>'
       + '<div><div class="bta-tile-sub">' + esc(p.brand) + ' &middot; ' + esc(priceText(p)) + '</div>'
       + (design ? '<div class="bta-mcard-design">' + (design.img ? '<img src="' + esc(design.img) + '" alt="">' : '')
-          + 'Design: <strong>' + esc(design.name) + '</strong>'
+          + 'Design: <strong>' + esc(design.name) + '</strong>' + (design.place ? ' &middot; ' + esc(design.place) : '')
           + (p.art.length > 1 ? ' <button type="button" class="bta-linkbtn" data-act="design">Change</button>' : '') + '</div>'
         : '<div class="bta-tile-sub">Design: the shop will confirm it with you.</div>')
       + '</div></div>'
@@ -114,7 +114,10 @@
       + colors.map(function (c) {
         var row = qty[c] || {};
         var ci = p.colorImgs && p.colorImgs[c] ? '<img class="bta-rowpic" src="' + esc(p.colorImgs[c]) + '" alt="">' : '';
-        return '<tr data-color="' + esc(c) + '"><th scope="row">' + ci + esc(c || 'Qty') + '</th>' + p.sizes.map(function (s) {
+        var v = design && design.versions && design.versions[c];
+        var vi = v && v.label ? '<span class="bta-rowver">' + (v.img ? '<img src="' + esc(v.img) + '" alt="">' : '')
+          + 'Version ' + esc(v.label) + (v.note ? ': ' + esc(v.note) : '') + '</span>' : '';
+        return '<tr data-color="' + esc(c) + '"><th scope="row">' + ci + esc(c || 'Qty') + vi + '</th>' + p.sizes.map(function (s) {
           return '<td><input type="number" min="0" inputmode="numeric" aria-label="' + esc(c + ' ' + s) + '"'
             + ' name="' + n + '[qty][' + esc(c) + '][' + esc(s) + ']" data-size="' + esc(s) + '" value="' + esc(row[s] || '') + '"></td>';
         }).join('') + '<td class="bta-rowpcs"></td></tr>';

@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.13.4**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.14.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -152,6 +152,16 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   product's image URL, else BT Catalog's photo of the **black** colourway (Dillon's call) for the
   same `style_no`, read from the catalog row's `colors` JSON (`[name, hex, img, swatch…]` per colour,
   0.13.4). Each colour row in the size grid shows that colour's catalog photo.
+- Art (0.14.0, schema 5): `art_library.placement` may list several (`Hat Front, Left Chest`);
+  `bta_line_placement()` gives a hat (`bta_product_is_hat()`, by name) the hat one and a shirt the
+  other. `art_library.variants` = colour versions (label / garment colours / file / preview / note);
+  `bta_art_version()` picks by line colour, else the row's own file. Each version is copied to
+  `order_art` separately, labelled `Bottle Cap (version 2)`.
+- **Bottle Cap** (Leonid, "Make Me Smile" roundel) ships in `assets/art/` (PDF 8.5 MB + PNG);
+  `bta_seed_bottle_cap()` copies it to `uploads/bt-accounts-art/leonid-bottle-cap.*` once. After a
+  release where that has run live, the files can come out of `assets/art/` to shrink the zip.
+  Cap versions per Dillon's Chipply table: 1 Black, 2 Red (blue/yellow), 3 Khaki + Brown
+  (yellow/red). Versions 2 and 3 have no files yet; White cap gets the default (version 1 file).
 - **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
   shipped to that customer; `external_ref` holds the store order # and blocks double entry.
 - Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a

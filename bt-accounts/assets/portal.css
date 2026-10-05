@@ -690,6 +690,11 @@ a.bta-tab { text-decoration: none; display: inline-block; }
 .bta-qtygrid input:focus { outline: none; border-color: var(--bta-navy); }
 .bta-rowpic { width: 34px; height: 34px; object-fit: contain; vertical-align: middle; margin-right: 8px; background: var(--bta-lav-soft); border-radius: 4px; }
 .bta-tile-img { background: #fff; }
+.bta-rowver {
+  display: flex; align-items: center; gap: 5px; margin-top: 3px; font-family: Tahoma, sans-serif;
+  font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--bta-muted);
+}
+.bta-rowver img { width: 22px; height: 22px; object-fit: contain; }
 .bta-rowpcs { font-weight: 700; color: var(--bta-navy); min-width: 40px; }
 .bta-mcard-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
 .bta-line-total { font-size: 15px; font-weight: 700; color: var(--bta-navy); }

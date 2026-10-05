@@ -39,6 +39,7 @@ function bta_merch_handle_admin_post($action) {
             'name' => $post('name'), 'file_url' => $post('file_url'), 'preview_url' => $post('preview_url'),
             'placement' => $post('placement'), 'colors' => $post('colors'), 'notes' => $post('notes'),
             'status' => sanitize_key($post('status')),
+            'variants' => isset($_POST['variants']) && is_array($_POST['variants']) ? wp_unslash($_POST['variants']) : array(),
         ), isset($_POST['art_id']) ? (int) $_POST['art_id'] : 0);
         if (is_wp_error($r)) bta_admin_notice($r->get_error_message(), 'error');
         else bta_admin_notice('Artwork saved.');
@@ -144,7 +145,10 @@ function bta_admin_merch_sections($a) {
         $pv = bta_art_preview($art);
         echo '<tr' . ($art->status !== 'active' ? ' style="opacity:.55"' : '') . '>';
         echo '<td>' . ($pv ? '<img src="' . esc_url($pv) . '" alt="" style="max-width:60px;max-height:60px">' : '') . '</td>';
-        echo '<td><strong>' . esc_html($art->name) . '</strong>' . ($art->notes !== '' ? '<br><span style="color:#666">' . esc_html($art->notes) . '</span>' : '') . '</td>';
+        $vtxt = array();
+        foreach (bta_art_versions($art) as $v) $vtxt[] = $v['label'] . ': ' . implode('/', $v['colors']) . ($v['file_url'] === '' ? ' (no file yet)' : '');
+        echo '<td><strong>' . esc_html($art->name) . '</strong>' . ($art->notes !== '' ? '<br><span style="color:#666">' . esc_html($art->notes) . '</span>' : '')
+           . ($vtxt ? '<br><span style="color:#666">Versions ' . esc_html(implode(' · ', $vtxt)) . '</span>' : '') . '</td>';
         echo '<td>' . esc_html(implode(' · ', array_filter(array($art->placement, $art->colors)))) . '</td>';
         echo '<td><a href="' . esc_url($art->file_url) . '" target="_blank" rel="noopener">' . esc_html($art->file_name) . '</a></td>';
         echo '<td>' . ($art->added_by === 'account' ? '<strong style="color:#b26d00">Account</strong>' : 'Shop') . ($art->status !== 'active' ? ' &middot; archived' : '') . '</td>';
@@ -165,9 +169,22 @@ function bta_admin_merch_sections($a) {
     echo '<tr><th>Name</th><td><input name="name" class="regular-text" required value="' . esc_attr($g('name')) . '" placeholder="Tour 2026 logo"></td></tr>';
     echo '<tr><th>File URL</th><td><input name="file_url" class="large-text"' . ($edit_a ? '' : ' required') . ' value="' . esc_attr($g('file_url')) . '"></td></tr>';
     echo '<tr><th>Preview image URL</th><td><input name="preview_url" class="large-text" value="' . esc_attr($g('preview_url')) . '"><p class="description">Only needed when the file itself is not an image (AI, PDF, EPS).</p></td></tr>';
-    echo '<tr><th>Placement</th><td><input name="placement" class="regular-text" value="' . esc_attr($g('placement')) . '" placeholder="Full Front"></td></tr>';
+    echo '<tr><th>Placement</th><td><input name="placement" class="regular-text" value="' . esc_attr($g('placement')) . '" placeholder="Full Front"><p class="description">Several allowed, comma separated, e.g. <code>Hat Front, Left Chest</code>: caps take the hat one, shirts the other.</p></td></tr>';
     echo '<tr><th>Ink colours</th><td><input name="colors" class="regular-text" value="' . esc_attr($g('colors')) . '"></td></tr>';
     echo '<tr><th>Notes</th><td><textarea name="notes" rows="2" class="large-text">' . esc_textarea($g('notes')) . '</textarea></td></tr>';
+    // Colour versions: the design changes with the garment colour.
+    $vers = $edit_a ? bta_art_versions($edit_a) : array();
+    $vers[] = array('label' => '', 'colors' => array(), 'file_url' => '', 'preview_url' => '', 'note' => '');
+    echo '<tr><th>Colour versions</th><td><p class="description" style="margin-top:0">When the design is done differently on some garment colours. Each order line gets the version for its colour; any other colour gets the file above. Leave a row&rsquo;s colours blank to delete it.</p>';
+    echo '<table class="widefat" style="font-size:13px"><thead><tr><th>Version</th><th>Garment colours</th><th>Description</th><th>File URL</th><th>Preview image URL</th></tr></thead><tbody>';
+    foreach ($vers as $i => $v) {
+        echo '<tr><td><input name="variants[' . $i . '][label]" style="width:50px" value="' . esc_attr($v['label']) . '"></td>';
+        echo '<td><input name="variants[' . $i . '][colors]" style="width:140px" value="' . esc_attr(implode(', ', $v['colors'])) . '" placeholder="Red"></td>';
+        echo '<td><input name="variants[' . $i . '][note]" style="width:130px" value="' . esc_attr($v['note']) . '"></td>';
+        echo '<td><input name="variants[' . $i . '][file_url]" style="width:100%" value="' . esc_attr($v['file_url']) . '">' . ($v['label'] !== '' && $v['file_url'] === '' ? '<br><span style="color:#b26d00">no file yet</span>' : '') . '</td>';
+        echo '<td><input name="variants[' . $i . '][preview_url]" style="width:100%" value="' . esc_attr($v['preview_url']) . '"></td></tr>';
+    }
+    echo '</tbody></table></td></tr>';
     echo '<tr><th>Status</th><td><select name="status"><option value="active">Active</option><option value="archived"' . selected($g('status'), 'archived', false) . '>Archived</option></select></td></tr>';
     echo '</table><p><button class="button button-primary">' . ($edit_a ? 'Save artwork' : 'Add artwork') . '</button></p></form>';
 }

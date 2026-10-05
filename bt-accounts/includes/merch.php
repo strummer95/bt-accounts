@@ -285,6 +285,22 @@ function bta_save_library_art($account_id, $args, $id = 0) {
         'preview_url' => esc_url_raw(isset($args['preview_url']) ? $args['preview_url'] : ''),
         'status'      => (isset($args['status']) && $args['status'] === 'archived') ? 'archived' : 'active',
     );
+    if (isset($args['variants']) && is_array($args['variants'])) {
+        $vs = array();
+        foreach ($args['variants'] as $v) {
+            if (!is_array($v)) continue;
+            $colors = array_values(array_filter(array_map('trim', explode(',', sanitize_text_field(isset($v['colors']) ? $v['colors'] : ''))), 'strlen'));
+            if (!$colors) continue;
+            $vs[] = array(
+                'label'       => sanitize_text_field(isset($v['label']) ? $v['label'] : ''),
+                'colors'      => $colors,
+                'file_url'    => esc_url_raw(isset($v['file_url']) ? $v['file_url'] : ''),
+                'preview_url' => esc_url_raw(isset($v['preview_url']) ? $v['preview_url'] : ''),
+                'note'        => sanitize_text_field(isset($v['note']) ? $v['note'] : ''),
+            );
+        }
+        $row['variants'] = $vs ? wp_json_encode($vs) : '';
+    }
     if (isset($args['file_url']) && $args['file_url'] !== '') {
         $row['file_url']  = esc_url_raw($args['file_url']);
         $row['file_name'] = sanitize_file_name(isset($args['file_name']) && $args['file_name'] !== ''
@@ -307,6 +323,68 @@ function bta_save_library_art($account_id, $args, $id = 0) {
 function bta_delete_library_art($id) {
     global $wpdb;
     return (bool) $wpdb->delete(bta_table('art_library'), array('id' => (int) $id));
+}
+
+/**
+ * Colour versions of a design: a list of label / garment colours / file / preview.
+ * A design printed differently on different garment colours (Bottle Cap: full
+ * colour on black caps, blue and yellow on red, yellow and red on khaki) keeps
+ * each version here; the row's own file is the default for any other colour.
+ */
+function bta_art_versions($a) {
+    $v = isset($a->variants) ? json_decode((string) $a->variants, true) : null;
+    if (!is_array($v)) return array();
+    $out = array();
+    foreach ($v as $x) {
+        if (!is_array($x)) continue;
+        $out[] = array(
+            'label'       => isset($x['label']) ? (string) $x['label'] : '',
+            'colors'      => array_values(array_filter(array_map('trim', (array) (isset($x['colors']) ? $x['colors'] : array())), 'strlen')),
+            'file_url'    => isset($x['file_url']) ? (string) $x['file_url'] : '',
+            'preview_url' => isset($x['preview_url']) ? (string) $x['preview_url'] : '',
+            'note'        => isset($x['note']) ? (string) $x['note'] : '',
+        );
+    }
+    return $out;
+}
+
+/** The version of a design for one garment colour: label, file_url, file_name, preview. */
+function bta_art_version($a, $color) {
+    $c = strtolower(trim((string) $color));
+    foreach (bta_art_versions($a) as $v) {
+        foreach ($v['colors'] as $vc) {
+            if (strtolower($vc) === $c) {
+                return array(
+                    'label'     => $v['label'] !== '' ? $v['label'] : $vc,
+                    'file_url'  => $v['file_url'],
+                    'file_name' => $v['file_url'] !== '' ? basename((string) wp_parse_url($v['file_url'], PHP_URL_PATH)) : '',
+                    'preview'   => $v['preview_url'] !== '' ? $v['preview_url'] : ($v['file_url'] !== '' && preg_match('/\.(png|jpe?g|gif|svg|webp)$/i', $v['file_url']) ? $v['file_url'] : ''),
+                    'note'      => $v['note'],
+                );
+            }
+        }
+    }
+    return array('label' => '', 'file_url' => (string) $a->file_url, 'file_name' => (string) $a->file_name, 'preview' => bta_art_preview($a), 'note' => '');
+}
+
+/** Whether a product goes on the head rather than the body. */
+function bta_product_is_hat($p) {
+    return (bool) preg_match('/\b(hat|cap|beanie|visor)\b/i', $p->name . ' ' . $p->placement);
+}
+
+/**
+ * Where the design goes on this item. A design can list several placements
+ * ("Hat Front, Left Chest"): a hat takes the hat one, a shirt the first other.
+ */
+function bta_line_placement($p, $art) {
+    $places = $art ? array_values(array_filter(array_map('trim', explode(',', (string) $art->placement)), 'strlen')) : array();
+    if ($places) {
+        $hat = bta_product_is_hat($p);
+        foreach ($places as $pl) if ((stripos($pl, 'hat') !== false) === $hat) return $pl;
+        if (!$hat) return $p->placement !== '' ? $p->placement : 'Full Front';
+        return $places[0];
+    }
+    return $p->placement !== '' ? $p->placement : 'Full Front';
 }
 
 /** The art choices for one product: its own list, or the whole active library. */
@@ -375,18 +453,21 @@ function bta_create_merch_order($account, $user, $type, $data, $lines) {
         $art = $ln['art_id'] ? bta_get_library_art($ln['art_id']) : null;
         $oid = 0;
         if ($art) {
-            if (!isset($copied[(int) $art->id])) {
+            // The version of the design that goes on this garment colour.
+            $ver = bta_art_version($art, $ln['color']);
+            $key = (int) $art->id . '|' . $ver['label'];
+            if (!isset($copied[$key])) {
                 $wpdb->insert(bta_table('order_art'), array(
                     'order_id'    => $order_id,
                     'account_id'  => (int) $account->id,
-                    'label'       => $art->name,
-                    'file_url'    => $art->file_url,
-                    'file_name'   => $art->file_name,
+                    'label'       => $ver['label'] !== '' ? $art->name . ' (version ' . $ver['label'] . ')' : $art->name,
+                    'file_url'    => $ver['file_url'],
+                    'file_name'   => $ver['file_name'] !== '' ? $ver['file_name'] : 'file to come from the shop',
                     'uploaded_at' => $now,
                 ));
-                $copied[(int) $art->id] = (int) $wpdb->insert_id;
+                $copied[$key] = (int) $wpdb->insert_id;
             }
-            $oid = $copied[(int) $art->id];
+            $oid = $copied[$key];
         }
 
         $qty = 0; $line_total = 0.0; $priced = true;
@@ -398,7 +479,7 @@ function bta_create_merch_order($account, $user, $type, $data, $lines) {
         $base = $type === 'ondemand' ? $p->ondemand_price : $p->bulk_price;
         $note = !$priced ? 'Priced by the shop.' : ((float) $p->upcharge > 0 ? '2XL and up +' . bta_money($p->upcharge) . ' each' : '');
 
-        $place = $p->placement !== '' ? $p->placement : ($art && $art->placement !== '' ? $art->placement : 'Full Front');
+        $place = bta_line_placement($p, $art);
         $locs  = array(array('placement' => $place, 'art_id' => $oid, 'emb' => $p->decoration === 'embroidery' ? 'logo' : ''));
 
         $row = array(

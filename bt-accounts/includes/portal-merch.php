@@ -185,6 +185,9 @@ function bta_merch_artwork($account, $errors) {
             $meta = array_filter(array($a->placement, $a->colors));
             if ($meta) echo '<div class="bta-sub">' . esc_html(implode(' · ', $meta)) . '</div>';
             if ($a->notes !== '') echo '<div class="bta-sub">' . esc_html($a->notes) . '</div>';
+            foreach (bta_art_versions($a) as $v) {
+                echo '<div class="bta-sub">Version ' . esc_html($v['label']) . ($v['note'] !== '' ? ' (' . esc_html($v['note']) . ')' : '') . ' on ' . esc_html(implode(', ', $v['colors'])) . '</div>';
+            }
             echo '<a class="bta-sub" href="' . esc_url($a->file_url) . '" target="_blank" rel="noopener">' . esc_html($a->file_name) . '</a>';
             echo '</div></div>';
         }
@@ -247,7 +250,20 @@ function bta_merch_form_products($account, $type) {
         foreach (bta_product_sizes($p) as $s) $prices[$s] = bta_product_price($p, $type, $s);
         $arts = array();
         foreach (bta_product_art_choices($p, $library) as $a) {
-            $arts[] = array('id' => (int) $a->id, 'name' => (string) $a->name, 'img' => bta_art_preview($a));
+            $vers = array();
+            if (bta_art_versions($a)) {
+                foreach (bta_product_colors($p) as $c) {
+                    $v = bta_art_version($a, $c);
+                    $vers[$c] = array('label' => $v['label'], 'img' => $v['preview'], 'note' => $v['note']);
+                }
+            }
+            $arts[] = array(
+                'id'       => (int) $a->id,
+                'name'     => (string) $a->name,
+                'img'      => bta_art_preview($a),
+                'place'    => bta_line_placement($p, $a),
+                'versions' => (object) $vers,
+            );
         }
         $out[] = array(
             'id'     => (int) $p->id,

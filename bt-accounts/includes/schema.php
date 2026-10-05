@@ -8,10 +8,11 @@
  *     link on each order. dbDelta adds the new columns to existing tables.
  * v4: merch-store accounts (Leonid & Friends first): a product list, an art
  *     library, bulk / on-demand orders with prices, and payments.
+ * v5: colour versions on library art; Leonid's Bottle Cap design.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 4);
+define('BTA_SCHEMA_VERSION', 5);
 
 function bta_table($name) {
     global $wpdb;
@@ -234,6 +235,7 @@ function bta_install_schema() {
         placement VARCHAR(120) NOT NULL DEFAULT '',
         colors VARCHAR(190) NOT NULL DEFAULT '',
         notes TEXT NULL,
+        variants MEDIUMTEXT NULL,
         added_by VARCHAR(20) NOT NULL DEFAULT 'shop',
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -268,6 +270,59 @@ function bta_install_schema() {
     update_option('bta_schema_version', BTA_SCHEMA_VERSION);
 
     bta_seed_leonid();
+    bta_seed_bottle_cap();
+}
+
+/**
+ * Leonid's Bottle Cap design ("Make Me Smile" roundel), shipped inside the
+ * plugin because Dillon works only through the dashboard. Copied once into the
+ * uploads art folder so its link outlives plugin updates. Goes on the cap's
+ * front or a shirt's left chest; the cap version follows the cap colour.
+ * Versions 2 and 3 have no files yet: the shop pastes their links in later.
+ */
+function bta_seed_bottle_cap() {
+    global $wpdb;
+    if (get_option('bta_seed_bottlecap_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+
+    $urls = array();
+    $up   = wp_upload_dir();
+    foreach (array('pdf', 'png') as $ext) {
+        $src  = BTA_DIR . 'assets/art/bottle-cap.' . $ext;
+        $urls[$ext] = BTA_URL . 'assets/art/bottle-cap.' . $ext;
+        if (empty($up['error']) && file_exists($src)) {
+            $dir = $up['basedir'] . '/bt-accounts-art';
+            if (!is_dir($dir)) wp_mkdir_p($dir);
+            if (file_exists($dir . '/leonid-bottle-cap.' . $ext) || @copy($src, $dir . '/leonid-bottle-cap.' . $ext)) {
+                $urls[$ext] = $up['baseurl'] . '/bt-accounts-art/leonid-bottle-cap.' . $ext;
+            }
+        }
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+
+    $lib = bta_table('art_library');
+    if (!$wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, 'Bottle Cap'))) {
+        $wpdb->insert($lib, array(
+            'account_id'  => $acct_id,
+            'name'        => 'Bottle Cap',
+            'file_url'    => $urls['pdf'],
+            'file_name'   => 'leonid-bottle-cap.pdf',
+            'preview_url' => $urls['png'],
+            'placement'   => 'Hat Front, Left Chest',
+            'colors'      => '',
+            'notes'       => 'Make Me Smile roundel. Hat front or left chest.',
+            'variants'    => wp_json_encode(array(
+                array('label' => '1', 'colors' => array('Black'), 'file_url' => $urls['pdf'], 'preview_url' => $urls['png'], 'note' => 'Full colour'),
+                array('label' => '2', 'colors' => array('Red'), 'file_url' => '', 'preview_url' => '', 'note' => 'Blue and yellow'),
+                array('label' => '3', 'colors' => array('Khaki', 'Brown'), 'file_url' => '', 'preview_url' => '', 'note' => 'Yellow and red'),
+            )),
+            'added_by'    => 'shop',
+            'status'      => 'active',
+            'created_at'  => current_time('mysql'),
+        ));
+    }
+    update_option('bta_seed_bottlecap_done', 1);
 }
 
 /**
