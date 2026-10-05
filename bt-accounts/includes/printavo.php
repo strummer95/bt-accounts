@@ -1130,7 +1130,18 @@ add_action('rest_api_init', function () {
     register_rest_route('bt-accounts/v1', '/staff/orders/(?P<id>\d+)/printavo', array(
         'methods' => 'POST', 'callback' => 'bta_pv_rest_send', 'permission_callback' => 'bta_staff_can',
     ));
+    register_rest_route('bt-accounts/v1', '/staff/orders/(?P<id>\d+)/printavo/clear-log', array(
+        'methods' => 'POST', 'callback' => 'bta_pv_rest_clear_log', 'permission_callback' => 'bta_staff_can',
+    ));
 });
+
+/** Empty an order's Printavo history (test runs). The quote link stays. */
+function bta_pv_rest_clear_log($request) {
+    $o = bta_staff_load($request);
+    if (is_wp_error($o)) return $o;
+    bta_pv_update_order($o->id, array('printavo_log' => ''));
+    return rest_ensure_response(array('ok' => true, 'order' => bta_staff_order_detail(bta_get_order($o->id)), 'statuses' => bta_staff_statuses()));
+}
 
 function bta_pv_rest_send($request) {
     $o = bta_staff_load($request);

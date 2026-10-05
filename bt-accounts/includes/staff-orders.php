@@ -682,7 +682,8 @@ function bta_staff_orders_shortcode() {
     if (pv.log && pv.log.length) {
       pvc += '<ul class="bta-s-log" style="margin-top:10px">' + pv.log.map(function (l) {
         return '<li><small>' + esc(l.when) + (l.by ? ' &middot; ' + esc(l.by) : '') + '</small><small style="color:#0f1240">' + esc(l.text) + '</small></li>';
-      }).join('') + '</ul>';
+      }).join('') + '</ul>'
+        + '<button type="button" class="bta-s-back" data-act="pvclear" style="font-size:13.5px;margin-top:6px">Clear history</button>';
     }
     pvc += '</div>';
 
@@ -860,6 +861,12 @@ function bta_staff_orders_shortcode() {
     if (act === 'jobsearch') searchJobs($('bta-s-jobq').value.trim());
     if (act === 'newjob') newJob();
     if (act === 'pvsend') sendPrintavo(a, false);
+    if (act === 'pvclear' && S.current && confirm('Clear the Printavo history on this order? The quote and its link stay.')) {
+      api('/orders/' + S.current.id + '/printavo/clear-log', 'POST', {}).then(function (d) {
+        renderDetail(d.order);
+        msg('bta-s-detailmsg', 'Printavo history cleared.');
+      }).catch(function (e) { msg('bta-s-detailmsg', e.message, 'bad'); });
+    }
     if (act === 'pvagain' && confirm('This makes a second quote in Printavo for the same order. Only do it if the first one was deleted or is wrong. Go ahead?')) sendPrintavo(a, true);
   });
 
