@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.16.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.1**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -166,8 +166,10 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
   a print location is a box on the product photo, x/y/w/h in % of the image; art is
   contain-fitted and centred in it. Same location keys (`full_front`, `left_chest`, `right_chest`,
   `hat`, …); `bta_location_key()` maps labels ("Hat Front" → `hat`). PresStora's real boxes are
-  drawn per style in its DB (nothing to copy), so `bta_default_zones()` holds starting boxes
-  (full front 25/20/50/55 is PresStora's default; left chest 55/23/15/15; hat 33/26/34/26) and
+  drawn per style in its DB (nothing to copy), so `bta_default_zones()` holds starting boxes.
+  0.16.1: PresStora's 25/20/50/55 drew art ~1.6x too big on catalog photos (Dillon); now sized from
+  his Chipply mockup (full front ≈ ⅓ shirt width under the collar): tee full front 36.5/22/27/33,
+  left chest 56/22/10/10, ladies full front 37.5/26/25/30, hat 36/29/28/22. And
   `products.zones` stores the shop's full set from the drag editor on the product form (a saved
   set replaces the defaults). Left chest = wearer's left = right side of the photo.
   "Put art X at location Y" = set the art's placement to Y; the mockup uses the product's Y box.

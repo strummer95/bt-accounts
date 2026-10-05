@@ -166,19 +166,29 @@ function bta_location_key($label) {
 }
 
 /**
- * Starting boxes, as a share of a front flat-lay photo. Full front is
- * PresStora's own default (25 / 20 / 50 / 55). Left chest is the wearer's
- * left, so it sits on the right of the photo. Back and sleeve locations have
- * no box because only the front photo is shown.
+ * Starting boxes, as a share of a front flat-lay photo. Sized from Dillon's
+ * Chipply mockup of the Tour 2026 van on a Gildan 5000 (Oct 5 2026): a full
+ * front is about a third of the shirt's width and sits just under the collar.
+ * PresStora's own default (25 / 20 / 50 / 55) drew art about 1.6x too big on
+ * these photos. Ladies' cuts get a narrower box a little lower, under the
+ * V. Left chest is the wearer's left, so it sits on the right of the photo.
+ * Back and sleeve locations have no box because only the front photo is shown.
  */
 function bta_default_zones($p) {
     if (bta_product_is_hat($p)) {
-        return array('hat' => array('x' => 33, 'y' => 26, 'w' => 34, 'h' => 26));
+        return array('hat' => array('x' => 36, 'y' => 29, 'w' => 28, 'h' => 22));
+    }
+    if (preg_match('/\b(ladies|women|womens)\b/i', $p->name)) {
+        return array(
+            'full_front'  => array('x' => 37.5, 'y' => 26, 'w' => 25, 'h' => 30),
+            'left_chest'  => array('x' => 55, 'y' => 26, 'w' => 9,  'h' => 9),
+            'right_chest' => array('x' => 36, 'y' => 26, 'w' => 9,  'h' => 9),
+        );
     }
     return array(
-        'full_front'  => array('x' => 25, 'y' => 20, 'w' => 50, 'h' => 55),
-        'left_chest'  => array('x' => 55, 'y' => 23, 'w' => 15, 'h' => 15),
-        'right_chest' => array('x' => 30, 'y' => 23, 'w' => 15, 'h' => 15),
+        'full_front'  => array('x' => 36.5, 'y' => 22, 'w' => 27, 'h' => 33),
+        'left_chest'  => array('x' => 56, 'y' => 22, 'w' => 10, 'h' => 10),
+        'right_chest' => array('x' => 34, 'y' => 22, 'w' => 10, 'h' => 10),
     );
 }
 
