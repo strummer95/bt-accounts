@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.12.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.12.1**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment

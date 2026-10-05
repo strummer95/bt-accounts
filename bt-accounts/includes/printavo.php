@@ -699,7 +699,7 @@ function bta_pv_create_quote($o) {
         'dueAt'           => $due_at,
         'productionNote'  => bta_pv_production_note($o, $account, $items, $art, $artby),
         'customerNote'    => $o->notes,
-        'tags'            => array('BT Accounts'),
+        'tags'            => array('#BTAccounts'),   // Printavo: "Tags must start with a #"
         'shippingAddress' => array(
             'customerName' => $o->ship_name,
             'companyName'  => $o->end_customer,
@@ -720,31 +720,45 @@ function bta_pv_create_quote($o) {
     list($group_type, $nested_line) = bta_pv_nested_types($quote_type);
     $q_sel = implode(' ', bta_pv_select('Quote', array('id', 'visualId', 'url'), array('id', 'visualId')));
 
+    // Each way of sending is tried whole first, then without the tag, then
+    // without the address, so one field Printavo dislikes costs only itself.
+    $ladder = array(
+        array(),
+        array('tags'),
+        array('tags', 'shippingAddress'),
+    );
+    $left_off = function ($drop) {
+        $out = array();
+        if (in_array('tags', $drop, true))            $out[] = 'The #BTAccounts tag was left off.';
+        if (in_array('shippingAddress', $drop, true)) $out[] = 'The ship-to address was left off the quote; it is in the production note.';
+        return $out;
+    };
+
     $q = null;
+    $nested = false;
+    $first_err = null;
     if ($nested_line !== '' && $items) {
         $groups = array();
         foreach ($items as $i => $it) $groups[] = bta_pv_group_payload($it, $artby, $nested_line, $i + 1);
-        $try = $quote;
-        $try['lineItemGroups'] = $groups;
-        $q = bta_pv_mutate('quoteCreate', array('input' => $try), $q_sel, $dropped);
-        if (is_wp_error($q)) {
-            $warnings[] = 'Sending the items with the quote failed (' . $q->get_error_message() . '), so they were added one by one.';
-            $q = null;
+        foreach ($ladder as $drop) {
+            $try = array_diff_key($quote, array_flip($drop));
+            $try['lineItemGroups'] = $groups;
+            $r = bta_pv_mutate('quoteCreate', array('input' => $try), $q_sel, $dropped);
+            if (!is_wp_error($r)) { $q = $r; $nested = true; $warnings = array_merge($warnings, $left_off($drop)); break; }
+            if ($first_err === null) $first_err = $r;
+        }
+        if (!$nested) {
+            $warnings[] = 'Sending the items with the quote failed (' . $first_err->get_error_message() . '), so they were added one by one.';
         }
     }
 
-    $nested = $q !== null;
     if (!$nested) {
-        $q = bta_pv_mutate('quoteCreate', array('input' => $quote), $q_sel, $dropped);
-        if (is_wp_error($q)) {
-            // Last resort: the address is the most likely field to be shaped differently.
-            $bare = $quote;
-            unset($bare['shippingAddress'], $bare['tags']);
-            $q2 = bta_pv_mutate('quoteCreate', array('input' => $bare), $q_sel, $dropped);
-            if (is_wp_error($q2)) return $q;
-            $warnings[] = 'The ship-to address was left off the quote (' . $q->get_error_message() . '). It is in the production note.';
-            $q = $q2;
+        foreach ($ladder as $drop) {
+            $r = bta_pv_mutate('quoteCreate', array('input' => array_diff_key($quote, array_flip($drop))), $q_sel, $dropped);
+            if (!is_wp_error($r)) { $q = $r; $warnings = array_merge($warnings, $left_off($drop)); break; }
+            if ($first_err === null) $first_err = $r;
         }
+        if ($q === null) return $first_err;
     }
 
     $qid = isset($q['id']) ? (string) $q['id'] : '';
