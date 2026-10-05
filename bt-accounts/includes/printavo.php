@@ -42,6 +42,16 @@ function bta_pv_account_map($account) {
     return $m;
 }
 
+/**
+ * Printavo is per account: only an account with a Printavo contact sends.
+ * One without stays out of Printavo entirely, with no failure emails.
+ */
+function bta_pv_account_on($account) {
+    if (!$account) return false;
+    $m = bta_pv_account_map($account);
+    return $m['name'] !== '';
+}
+
 function bta_pv_save_account_map($account_id, $m) {
     update_option('bta_pv_acct_' . (int) $account_id, $m, false);
 }
@@ -889,6 +899,8 @@ function bta_pv_email_failure($o, $why) {
 add_action('bta_order_submitted', 'bta_pv_queue_order', 20, 1);
 function bta_pv_queue_order($order_id) {
     if (!bta_pv_configured() || !get_option('bta_pv_auto', 1)) return;
+    $o = bta_get_order($order_id);
+    if (!$o || !bta_pv_account_on(bta_get_account($o->account_id))) return;
     bta_pv_update_order($order_id, array('printavo_state' => 'queued', 'printavo_at' => current_time('mysql')));
     wp_schedule_single_event(time(), 'bta_pv_send_event', array((int) $order_id));
     if (function_exists('spawn_cron')) spawn_cron();
@@ -926,6 +938,7 @@ function bta_pv_order_shape($o) {
     }
     return array(
         'connected' => bta_pv_configured(),
+        'account_on'=> bta_pv_account_on(bta_get_account($o->account_id)),
         'state'     => (string) $o->printavo_state,
         'number'    => (string) $o->printavo_number,
         'url'       => esc_url_raw((string) $o->printavo_url),
@@ -1069,7 +1082,7 @@ function bta_pv_account_section($a) {
     } elseif ($m['name'] !== '') {
         echo 'Not looked up yet. Press Find, or it is looked up on the first order.';
     } else {
-        echo 'Who this account&rsquo;s quotes belong to in Printavo.';
+        echo 'Blank: this account&rsquo;s orders stay out of Printavo. Fill in a name to send them there as quotes for that contact.';
     }
     echo '</p></td></tr></table>';
     echo '<p><button class="button"' . (bta_pv_configured() ? '' : ' disabled title="Connect Printavo on the main BT Accounts page first"') . '>Find in Printavo</button></p></form>';

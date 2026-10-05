@@ -668,6 +668,8 @@ function bta_staff_orders_shortcode() {
         + (pv.error ? '<div class="bta-s-pvwarn">' + esc(pv.error) + '</div>' : '')
         + '<p class="bta-s-hint">Review it in Printavo, then send it for approval from there.</p>'
         + '<button type="button" class="bta-s-btn ghost sm" data-act="pvagain">Send again as a new quote</button>';
+    } else if (pv.connected && !pv.account_on) {
+      pvc += '<p class="bta-s-hint">' + esc(o.account || 'This account') + '&rsquo;s orders don&rsquo;t go to Printavo. To send them, set a Printavo contact on the account under BT Accounts in wp-admin.</p>';
     } else if (!pv.connected) {
       pvc += '<p class="bta-s-hint">Printavo isn&rsquo;t connected yet. An admin adds the Printavo email and API token under BT Accounts in wp-admin.</p>';
     } else if (pv.state === 'queued' || pv.state === 'sending') {

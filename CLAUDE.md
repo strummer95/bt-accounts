@@ -89,8 +89,11 @@ nonce.
 
 ## Printavo (0.12.0)
 
-Every submitted order is queued (WP-Cron) and created in Printavo as a **quote** on the account's
-Printavo contact (Cintas → Sasha Velez, set per account, ids cached in `bta_pv_acct_{id}`). The shop
+**Per account, not every account.** An account sends only if it has a Printavo contact set
+(`bta_pv_account_on()`); one without stays out of Printavo, no queueing, no failure emails.
+Cintas → Sasha Velez (default for a Cintas-named account; ids cached in `bta_pv_acct_{id}`).
+Each order from an account that sends is queued (WP-Cron) and created in Printavo as a **quote**
+on that contact. The shop
 reviews it and sends it for approval by hand; the plugin never approves, invoices or emails from
 Printavo. Settings and Test connection are on the main BT Accounts page; the staff screen shows the
 quote # with Try again / Send again. Failures email the shop and never touch the order.
