@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.13.1**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.14.0**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -131,6 +131,18 @@ quote # with Try again / Send again. Failures email the shop and never touch the
   stored price are priced at Printavo send time (`bta_pv_unit_price()`).
 - Order form fields are `item[i][...]` with explicit indexes; the old `item_x[]` arrays shifted
   sizes onto the wrong line when one was removed.
+
+## Invites and email sign-in (0.14.0)
+
+`includes/invites.php`. People sign in with their **email**; the shop invites by name + email
+(account page → Invite someone). Invited logins have `status = 'invited'`, `username` = the
+lowercased email, empty `pass_hash`. One-time links live on the user row (`token_hash` = sha256
+of the token, `token_kind` invite|reset, `token_expires`): invite 7 days, reset 1 hour, a new
+link replaces the old, used once. Pages: `/accounts/set-password?u=&t=` (choose password →
+signed straight in), `/accounts/forgot` (3 links per address per hour), `/accounts/password`
+(change while signed in; kills other sessions). Legacy hand-made logins still sign in by
+username (`bta_get_user_for_signin()`: username first, then email). Min password 8 for
+self-set. Tested against a throwaway database: 17 cases incl. expiry and single use.
 
 ## Sign-in diagnostics
 

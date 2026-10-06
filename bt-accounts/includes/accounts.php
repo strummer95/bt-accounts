@@ -148,6 +148,8 @@ function bta_update_user($id, $args) {
     if (isset($args['password']) && $args['password'] !== '') {
         if (strlen($args['password']) < 6) return new WP_Error('bta_bad_password', 'Password must be at least 6 characters.');
         $data['pass_hash'] = wp_hash_password((string) $args['password']);
+        // Setting a password by hand on someone still invited activates them.
+        if ($user->status === 'invited') $data['status'] = 'active';
     }
 
     if (!$data) return true;

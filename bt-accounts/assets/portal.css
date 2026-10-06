@@ -177,6 +177,11 @@ a { color: var(--bta-navy); }
   text-align: center;
 }
 
+/* Set password / Forgot password share the sign-in card */
+.bta-auth-h { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 600; color: var(--bta-navy, #27267e); margin: 0 0 6px; }
+.bta-auth-p { font-size: 15px; color: var(--bta-muted); margin: 0 0 18px; line-height: 1.5; }
+.bta-login-help a { font-size: 14px; }
+
 /* ── Header ──────────────────────────────────────────────────────────────── */
 
 .bta-header {

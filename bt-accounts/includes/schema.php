@@ -6,10 +6,11 @@
  * Order tables land in Phase 4 as v2 so the order shape can be settled first.
  * v3: print/embroidery locations and a price per item line, and the Printavo
  *     link on each order. dbDelta adds the new columns to existing tables.
+ * v4: one-time links on each login (invite / password reset), hash only.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 3);
+define('BTA_SCHEMA_VERSION', 4);
 
 function bta_table($name) {
     global $wpdb;
@@ -52,6 +53,9 @@ function bta_install_schema() {
         is_account_admin TINYINT(1) NOT NULL DEFAULT 0,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         last_login_at DATETIME NULL,
+        token_hash CHAR(64) NOT NULL DEFAULT '',
+        token_kind VARCHAR(10) NOT NULL DEFAULT '',
+        token_expires DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
         PRIMARY KEY (id),
         UNIQUE KEY username (username),

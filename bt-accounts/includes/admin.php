@@ -148,6 +148,28 @@ function bta_handle_admin_post() {
         else bta_admin_notice('Login updated. Any active session for that person was signed out.');
     }
 
+    if ($action === 'invite_user') {
+        $r = bta_invite_user(
+            (int) $_POST['account_id'],
+            isset($_POST['display_name']) ? wp_unslash($_POST['display_name']) : '',
+            isset($_POST['email']) ? wp_unslash($_POST['email']) : '',
+            !empty($_POST['is_account_admin'])
+        );
+        if (is_wp_error($r)) bta_admin_notice($r->get_error_message(), 'error');
+        else bta_admin_notice('Invite sent to ' . bta_get_user($r)->email . '. The link lasts ' . BTA_INVITE_DAYS . ' days.');
+    }
+
+    if ($action === 'send_link') {
+        $u = bta_get_user((int) $_POST['user_id']);
+        if (!$u || !is_email($u->email)) {
+            bta_admin_notice('That login has no email address. Add one first.', 'error');
+        } elseif (bta_send_reset($u)) {
+            bta_admin_notice(($u->status === 'invited' ? 'Invite sent again to ' : 'Reset link sent to ') . $u->email . '.');
+        } else {
+            bta_admin_notice('WordPress could not send the email. Check the site\'s SMTP settings.', 'error');
+        }
+    }
+
     if ($action === 'delete_user') {
         bta_delete_user((int) $_POST['user_id']);
         bta_admin_notice('Login deleted.');
@@ -313,7 +335,7 @@ function bta_admin_account_editor($a) {
 
     // Logins
     echo '<h2 style="margin-top:32px">Logins</h2>';
-    echo '<table class="widefat striped" style="max-width:900px"><thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Last sign-in</th><th>Status</th><th></th></tr></thead><tbody>';
+    echo '<table class="widefat striped" style="max-width:900px"><thead><tr><th>Signs in with</th><th>Name</th><th>Email</th><th>Last sign-in</th><th>Status</th><th></th></tr></thead><tbody>';
     if (!$users) echo '<tr><td colspan="6">No logins yet.</td></tr>';
     foreach ($users as $u) {
         echo '<tr>';
@@ -321,12 +343,23 @@ function bta_admin_account_editor($a) {
         echo '<td>' . esc_html($u->display_name) . '</td>';
         echo '<td>' . esc_html($u->email) . '</td>';
         echo '<td>' . esc_html($u->last_login_at ? $u->last_login_at : 'never') . '</td>';
-        echo '<td>' . esc_html($u->status) . '</td>';
-        echo '<td>';
+        if ($u->status === 'invited') {
+            $exp = $u->token_kind === 'invite' && $u->token_expires ? strtotime($u->token_expires) : 0;
+            echo '<td><strong>Invited</strong><br><span style="color:#666">' . ($exp > current_time('timestamp') ? 'link good until ' . esc_html(date_i18n('M j', $exp)) : 'link expired') . '</span></td>';
+        } else {
+            echo '<td>' . esc_html($u->status) . '</td>';
+        }
+        echo '<td style="white-space:nowrap">';
+        if (is_email($u->email) && $u->status !== 'disabled') {
+            echo '<form method="post" style="display:inline">';
+            wp_nonce_field('bta_admin');
+            echo '<input type="hidden" name="bta_action" value="send_link"><input type="hidden" name="user_id" value="' . (int) $u->id . '">';
+            echo '<button class="button button-small">' . ($u->status === 'invited' ? 'Resend invite' : 'Send reset link') . '</button></form> ';
+        }
         echo '<form method="post" style="display:inline" onsubmit="return confirm(\'Delete this login?\')">';
         wp_nonce_field('bta_admin');
         echo '<input type="hidden" name="bta_action" value="delete_user"><input type="hidden" name="user_id" value="' . (int) $u->id . '">';
-        echo '<button class="button button-small">Delete</button></form>';
+        echo '<button class="button button-small">' . ($u->status === 'invited' ? 'Cancel invite' : 'Delete') . '</button></form>';
         echo '</td></tr>';
 
         // Inline edit row
@@ -338,13 +371,27 @@ function bta_admin_account_editor($a) {
         echo '<input name="email" value="' . esc_attr($u->email) . '" placeholder="Email">';
         echo '<input name="password" type="text" value="" placeholder="New password (blank = unchanged)" style="width:230px">';
         echo '<label><input type="checkbox" name="is_account_admin" value="1"' . checked($u->is_account_admin, 1, false) . '> Sees all orders on the account</label>';
-        echo '<select name="status"><option value="active"' . selected($u->status, 'active', false) . '>Active</option><option value="disabled"' . selected($u->status, 'disabled', false) . '>Disabled</option></select>';
+        if ($u->status !== 'invited') {
+            echo '<select name="status"><option value="active"' . selected($u->status, 'active', false) . '>Active</option><option value="disabled"' . selected($u->status, 'disabled', false) . '>Disabled</option></select>';
+        }
         echo '<button class="button button-small">Update</button>';
         echo '</form></td></tr>';
     }
     echo '</tbody></table>';
 
-    echo '<h3 style="margin-top:24px">Add a login</h3>';
+    echo '<h3 style="margin-top:24px">Invite someone</h3>';
+    echo '<form method="post" style="max-width:560px"><table class="form-table">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="invite_user">';
+    echo '<input type="hidden" name="account_id" value="' . (int) $a->id . '">';
+    echo '<tr><th><label for="bta-in">Name</label></th><td><input id="bta-in" name="display_name" class="regular-text" placeholder="Sasha Velez"></td></tr>';
+    echo '<tr><th><label for="bta-ie">Email</label></th><td><input id="bta-ie" name="email" type="email" class="regular-text" required>';
+    echo '<p class="description">They get an email with a link to choose their own password, and sign in with this email from then on. The link lasts ' . BTA_INVITE_DAYS . ' days; Resend invite makes a new one.</p></td></tr>';
+    echo '<tr><th>Permissions</th><td><label><input type="checkbox" name="is_account_admin" value="1"> Sees all orders on the account (otherwise only their own)</label></td></tr>';
+    echo '</table><p><button class="button button-primary">Send invite</button></p></form>';
+
+    echo '<details style="margin-top:8px"><summary style="cursor:pointer;color:#2271b1">Or set up a login yourself, with a password you pass on</summary>';
+    echo '<h3 style="margin-top:16px">Add a login</h3>';
     echo '<form method="post" style="max-width:520px"><table class="form-table">';
     wp_nonce_field('bta_admin');
     echo '<input type="hidden" name="bta_action" value="create_user">';
@@ -353,9 +400,9 @@ function bta_admin_account_editor($a) {
     echo '<tr><th><label for="bta-dn">Name</label></th><td><input id="bta-dn" name="display_name" class="regular-text"></td></tr>';
     echo '<tr><th><label for="bta-em">Email</label></th><td><input id="bta-em" name="email" type="email" class="regular-text"></td></tr>';
     echo '<tr><th><label for="bta-pw">Password</label></th><td><input id="bta-pw" name="password" type="text" class="regular-text" required>';
-    echo '<p class="description">You set it and pass it along; there is no self-serve reset yet. One login per person rather than one per company keeps order history attributable and lets you disable someone without disrupting everyone else.</p></td></tr>';
+    echo '<p class="description">You set it and pass it along. They can change it under Password once signed in, or use Forgot your password? if it has an email.</p></td></tr>';
     echo '<tr><th>Permissions</th><td><label><input type="checkbox" name="is_account_admin" value="1"> Sees all orders on the account (otherwise only their own)</label></td></tr>';
-    echo '</table><p><button class="button button-primary">Create login</button></p></form>';
+    echo '</table><p><button class="button">Create login</button></p></form></details>';
 
     bta_render_signin_diagnostics($a, $users);
 

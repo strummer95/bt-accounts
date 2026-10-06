@@ -126,34 +126,39 @@ function bta_clear_attempts($username) {
  */
 function bta_login($username, $password) {
     $specific = bta_specific_errors();
-    $generic  = new WP_Error('bta_bad_login', 'That username and password did not match.');
+    $generic  = new WP_Error('bta_bad_login', 'That email and password did not match.');
     $raw      = trim((string) $username);
 
     // Empty fields are always named — nothing to leak, and it is the single
     // most common reason a form appears to "do nothing".
-    if ($raw === '')              return new WP_Error('bta_no_username', 'Enter your username.');
+    if ($raw === '')              return new WP_Error('bta_no_username', 'Enter your email address.');
     if ((string) $password === '') return new WP_Error('bta_no_password', 'Enter your password.');
 
     $locked = bta_lockout_remaining($raw);
     if ($locked > 0) {
         return new WP_Error('bta_locked', sprintf(
-            'Too many failed attempts. For security this sign-in is paused for another %d minute%s. If you are not sure of your password, email orders@boomerts.com and we will reset it.',
+            'Too many failed attempts. For security this sign-in is paused for another %d minute%s. If you are not sure of your password, use Forgot your password? below to set a new one.',
             $locked, $locked === 1 ? '' : 's'
         ));
     }
 
-    $user = bta_get_user_by_username($raw);
+    // Email, or the username of a login made by hand before invites existed.
+    $user = bta_get_user_for_signin($raw);
 
     if (!$user) {
         bta_record_attempt($raw);
         if (!$specific) return $generic;
-        $msg = 'We do not recognise the username ' . $raw . '.';
         if (strpos($raw, '@') !== false) {
-            $msg .= ' That looks like an email address — sign in with the username the shop set up for you instead.';
+            $msg = 'No login uses the email ' . $raw . '. Check the spelling, or email orders@boomerts.com.';
         } else {
-            $msg .= ' Check it against the one we sent you, or email orders@boomerts.com.';
+            $msg = 'We do not recognise ' . $raw . '. Sign in with your email address.';
         }
         return new WP_Error('bta_no_user', $msg);
+    }
+
+    if ($user->status === 'invited') {
+        if (!$specific) return $generic;
+        return new WP_Error('bta_user_invited', 'You have not set your password yet. Use the link in your invite email, or press Forgot your password? below and we will send a new one.');
     }
 
     if ($user->status !== 'active') {
@@ -167,7 +172,7 @@ function bta_login($username, $password) {
         if (!$specific) return $generic;
 
         $left = BTA_MAX_ATTEMPTS - bta_user_attempt_count($raw);
-        $msg  = 'That password is not right. The username is correct, so it is just the password.';
+        $msg  = 'That password is not right. The email is correct, so it is just the password. Forgot it? Use the link below.';
         if ($left <= 0) {
             // This attempt is the one that tripped the throttle — say so now,
             // rather than leaving them to discover it on the next try.

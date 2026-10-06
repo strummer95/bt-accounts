@@ -55,6 +55,10 @@ function bta_route_portal() {
         exit;
     }
 
+    // ── One-time links and Forgot password work signed in or not ──
+    if ($view === 'set-password') bta_handle_set_password();
+    if ($view === 'forgot' && !bta_is_logged_in()) bta_handle_forgot();
+
     // ── Login submit ──
     if (!bta_is_logged_in() && !empty($_POST['bta_login'])) {
         $r = bta_login(
@@ -81,7 +85,7 @@ function bta_route_portal() {
 
     if (!bta_is_logged_in()) {
         if ($notice === '' && !empty($_GET['signedin'])) {
-            $notice = 'Your username and password were correct, but your browser did not keep the sign-in. '
+            $notice = 'Your email and password were correct, but your browser did not keep the sign-in. '
                     . 'That is usually cookies being blocked for this site, or a private/locked-down browser window. '
                     . 'Allow cookies for boomerts.com and try again, or email orders@boomerts.com.';
         }
@@ -92,6 +96,10 @@ function bta_route_portal() {
     $user    = bta_current_user();
     $account = $user->account;
     $errors  = array();
+
+    if ($view === 'password' && !empty($_POST['bta_change_password'])) {
+        $errors = array(bta_handle_change_password($user));
+    }
 
     // New-order submit runs before any output so a success can redirect.
     if ($view === 'new' && !empty($_POST['bta_submit_order'])) {
@@ -174,18 +182,19 @@ function bta_render_login($notice = '') {
           <?php if ($notice) : ?>
             <div class="bta-alert" role="alert"><?php echo esc_html($notice); ?></div>
           <?php endif; ?>
-          <form method="post" autocomplete="off">
+          <form method="post">
             <input type="hidden" name="bta_login" value="1">
             <div class="bta-field">
-              <label class="bta-label" for="bta-username">Username</label>
-              <input class="bta-input" id="bta-username" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
+              <label class="bta-label" for="bta-username">Email</label>
+              <input class="bta-input" id="bta-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
             </div>
             <div class="bta-field">
               <label class="bta-label" for="bta-password">Password</label>
-              <input class="bta-input" id="bta-password" name="password" type="password" required>
+              <input class="bta-input" id="bta-password" name="password" type="password" autocomplete="current-password" required>
             </div>
             <button class="bta-btn" type="submit">Sign in</button>
           </form>
+          <p class="bta-login-help"><a href="<?php echo esc_url(bta_portal_url('forgot')); ?>">Forgot your password?</a></p>
           <p class="bta-login-help">Trouble signing in? Call the shop or email
             <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>.</p>
         </div>
@@ -203,7 +212,7 @@ function bta_render_portal($view = '', $errors = array()) {
     $accent  = $account->brand_color ? $account->brand_color : '#27267e';
     $who     = $user->display_name ? $user->display_name : $user->username;
 
-    $titles = array('new' => 'New order', 'order' => 'Order', 'quote' => 'Quote');
+    $titles = array('new' => 'New order', 'order' => 'Order', 'quote' => 'Quote', 'password' => 'Password');
     $title  = isset($titles[$view]) ? $titles[$view] . ' · ' : '';
 
     bta_head($title . $account->name . ' · Boomer T\'s', $accent);
@@ -223,6 +232,7 @@ function bta_render_portal($view = '', $errors = array()) {
         </div>
         <div class="bta-header-user">
           <span class="bta-header-who"><?php echo esc_html($who); ?></span>
+          <a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('password')); ?>">Password</a>
           <a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('logout')); ?>">Sign out</a>
         </div>
       </div>
@@ -247,6 +257,8 @@ function bta_render_portal($view = '', $errors = array()) {
           bta_portal_order_detail($user, $account, (int) get_query_var('bta_id'));
       } elseif ($view === 'quote') {
           bta_portal_quote($user, $account);
+      } elseif ($view === 'password') {
+          bta_portal_password($user, $errors ? $errors[0] : '');
       } else {
           bta_portal_orders($user, $account);
       }
