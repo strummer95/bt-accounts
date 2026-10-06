@@ -235,6 +235,7 @@ function bta_staff_order_detail($o) {
         'art'          => $art,
         'log'          => $log,
         'print_url'    => bta_order_print_url($o->id),
+        'portal_url'   => bta_view_as_url($o->account_id),
         'printavo'     => bta_pv_order_shape($o),
     );
 }
@@ -697,6 +698,7 @@ function bta_staff_orders_shortcode() {
     $('bta-s-detail').innerHTML =
         '<div class="bta-s-head"><button type="button" class="bta-s-back" data-act="back">&larr; All orders</button></div>'
       + '<div class="bta-s-head"><h2 class="bta-s-h2">' + esc(o.number) + ' <span>' + esc(o.account) + '</span></h2><div class="bta-s-grow"></div>'
+      + (o.portal_url ? '<a class="bta-s-btn ghost" href="' + esc(o.portal_url) + '" target="_blank" rel="noopener">Open ' + esc(o.account || 'their') + ' portal</a>' : '')
       + '<a class="bta-s-btn pink" href="' + esc(o.print_url) + '" target="_blank" rel="noopener">Print work order</a></div>'
       + '<div class="bta-s-msg" id="bta-s-detailmsg"></div>'
       + '<div class="bta-s-grid"><div class="bta-s-main"><div class="bta-s-card">' + info + '</div>' + items + art + '</div>'

@@ -235,7 +235,8 @@ function bta_admin_accounts_list() {
         echo '<td><strong><a href="' . esc_url($url) . '">' . esc_html($a->name) . '</a></strong><br><span style="color:#666">/' . esc_html($a->slug) . '</span></td>';
         echo '<td>' . (int) $n . '</td>';
         echo '<td>' . esc_html($a->status) . '</td>';
-        echo '<td><a class="button" href="' . esc_url($url) . '">Manage</a></td>';
+        echo '<td style="white-space:nowrap"><a class="button" href="' . esc_url($url) . '">Manage</a> '
+           . ($a->status === 'active' ? '<a class="button" href="' . esc_url(bta_view_as_url($a->id)) . '" target="_blank" rel="noopener">View portal</a>' : '') . '</td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
@@ -312,7 +313,8 @@ function bta_admin_accounts_list() {
 function bta_admin_account_editor($a) {
     $users = bta_get_account_users($a->id);
 
-    echo '<h1>' . esc_html($a->name) . '</h1>';
+    echo '<h1>' . esc_html($a->name)
+       . ($a->status === 'active' ? ' <a class="page-title-action" href="' . esc_url(bta_view_as_url($a->id)) . '" target="_blank" rel="noopener">View their portal</a>' : '') . '</h1>';
     echo '<p><a href="' . esc_url(admin_url('admin.php?page=bt-accounts')) . '">&larr; All accounts</a></p>';
 
     // Settings

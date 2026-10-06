@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.16.3**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.4**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -143,6 +143,15 @@ signed straight in), `/accounts/forgot` (3 links per address per hour), `/accoun
 (change while signed in; kills other sessions). Legacy hand-made logins still sign in by
 username (`bta_get_user_for_signin()`: username first, then email). Min password 8 for
 self-set. Tested against a throwaway database: 17 cases incl. expiry and single use.
+
+## Shop view of a portal (0.16.4)
+
+`includes/view-as.php`. Each account has one hidden login `shop-<account id>` (status `shop`, no
+password, no email, `is_account_admin` 1, display name "Boomer T's (WP user)"). View portal
+(`admin-post.php?action=bta_view_as`, nonce, `bta_staff_can()`) starts a portal session on it.
+`bta_current_user()` honours a shop session only while `bta_staff_can()` is true for the WordPress
+login in the same browser. Hidden from `bta_get_account_users()`; can't sign in by password; pink
+`bta-shopbar` with Exit (back to wp-admin account, or /employees/accounts for staff).
 
 ## Merch stores (0.13.2)
 

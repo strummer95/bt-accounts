@@ -86,7 +86,7 @@ function bta_sanitize_hex($hex) {
 function bta_get_account_users($account_id) {
     global $wpdb;
     return $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM " . bta_table('users') . " WHERE account_id = %d ORDER BY display_name ASC, username ASC",
+        "SELECT * FROM " . bta_table('users') . " WHERE account_id = %d AND status <> 'shop' ORDER BY display_name ASC, username ASC",
         (int) $account_id
     ));
 }

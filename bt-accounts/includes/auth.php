@@ -286,7 +286,13 @@ function bta_current_user() {
     }
 
     $user = bta_get_user((int) $session->user_id);
-    if (!$user || $user->status !== 'active') return $cache = null;
+    if (!$user) return $cache = null;
+    if ($user->status === 'shop') {
+        // The shop's view of an account only lasts while they are signed into WordPress with access.
+        if (!function_exists('bta_staff_can') || !bta_staff_can()) return $cache = null;
+    } elseif ($user->status !== 'active') {
+        return $cache = null;
+    }
 
     $account = bta_get_account((int) $user->account_id);
     if (!$account || $account->status !== 'active') return $cache = null;

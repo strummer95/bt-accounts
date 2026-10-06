@@ -50,8 +50,9 @@ function bta_route_portal() {
 
     // ── Logout ──
     if ($view === 'logout') {
+        $was = bta_current_user();
         bta_logout();
-        wp_safe_redirect(home_url('/' . bta_portal_slug() . '/'));
+        wp_safe_redirect(bta_is_shop_user($was) ? bta_shop_exit_url($was) : home_url('/' . bta_portal_slug() . '/'));
         exit;
     }
 
@@ -235,11 +236,13 @@ function bta_render_portal($view = '', $errors = array()) {
         </div>
         <div class="bta-header-user">
           <span class="bta-header-who"><?php echo esc_html($who); ?></span>
-          <a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('password')); ?>">Password</a>
+          <?php if (!bta_is_shop_user($user)) : ?><a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('password')); ?>">Password</a><?php endif; ?>
           <a class="bta-header-out" href="<?php echo esc_url(bta_portal_url('logout')); ?>">Sign out</a>
         </div>
       </div>
     </header>
+
+    <?php if (bta_is_shop_user($user)) bta_render_shop_bar($user, $account); ?>
 
     <nav class="bta-tabs">
       <div class="bta-tabs-inner">
@@ -256,7 +259,7 @@ function bta_render_portal($view = '', $errors = array()) {
 
     <main class="bta-main">
       <?php
-      if ($view === 'password') {
+      if ($view === 'password' && !bta_is_shop_user($user)) {
           bta_portal_password($user, $errors ? $errors[0] : '');
       } elseif ($merch) {
           bta_merch_render_view($view, $user, $account, $errors);
