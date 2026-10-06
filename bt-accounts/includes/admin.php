@@ -54,6 +54,7 @@ function bta_handle_admin_post() {
 
     $action = sanitize_key($_POST['bta_action']);
     bta_pv_handle_admin_post($action);
+    bta_merch_handle_admin_post($action);
 
     if ($action === 'save_settings') {
         update_option('bta_shop_logo', esc_url_raw(wp_unslash(isset($_POST['shop_logo']) ? $_POST['shop_logo'] : '')));
@@ -118,6 +119,8 @@ function bta_handle_admin_post() {
             'can_buy_garments' => !empty($_POST['can_buy_garments']),
             'requires_po'      => !empty($_POST['requires_po']),
             'status'           => isset($_POST['status']) ? sanitize_key($_POST['status']) : 'active',
+            'kind'             => isset($_POST['kind']) ? sanitize_key($_POST['kind']) : 'contract',
+            'order_prefix'     => isset($_POST['order_prefix']) ? wp_unslash($_POST['order_prefix']) : '',
         ));
         if (is_wp_error($r)) bta_admin_notice($r->get_error_message(), 'error');
         else bta_admin_notice('Saved.');
@@ -284,6 +287,7 @@ function bta_admin_accounts_list() {
     echo '</form>';
 
     bta_pv_admin_section();
+    bta_admin_payments_settings();
 
     echo '<h2 style="margin-top:32px">Add an account</h2>';
     echo '<form method="post" style="max-width:520px"><table class="form-table">';
@@ -325,6 +329,10 @@ function bta_admin_account_editor($a) {
     echo '<label><input type="checkbox" name="requires_po" value="1"' . checked($a->requires_po, 1, false) . '> Require a PO number on every order</label><br>';
     echo '<label><input type="checkbox" name="can_buy_garments" value="1"' . checked($a->can_buy_garments, 1, false) . '> Allow buying garments from us (off = they supply their own blanks, decoration-only pricing)</label>';
     echo '</td></tr>';
+    echo '<tr><th><label for="bta-kind">Type</label></th><td><select id="bta-kind" name="kind">';
+    foreach (bta_account_kinds() as $k => $label) echo '<option value="' . esc_attr($k) . '"' . selected(isset($a->kind) ? $a->kind : 'contract', $k, false) . '>' . esc_html($label) . '</option>';
+    echo '</select><p class="description">A merch store orders from its own product list (bulk or on demand) and pays through the portal.</p></td></tr>';
+    echo '<tr><th><label for="bta-prefix">Order number prefix</label></th><td><input id="bta-prefix" name="order_prefix" class="small-text" style="width:90px" value="' . esc_attr(bta_account_prefix($a)) . '"></td></tr>';
     echo '<tr><th><label for="bta-status">Status</label></th><td><select id="bta-status" name="status">';
     echo '<option value="active"' . selected($a->status, 'active', false) . '>Active</option>';
     echo '<option value="disabled"' . selected($a->status, 'disabled', false) . '>Disabled</option>';
@@ -332,6 +340,8 @@ function bta_admin_account_editor($a) {
     echo '</table><p><button class="button button-primary">Save</button></p></form>';
 
     bta_pv_account_section($a);
+
+    if (bta_is_merch($a)) bta_admin_merch_sections($a);
 
     // Logins
     echo '<h2 style="margin-top:32px">Logins</h2>';
@@ -405,6 +415,8 @@ function bta_admin_account_editor($a) {
     echo '</table><p><button class="button">Create login</button></p></form></details>';
 
     bta_render_signin_diagnostics($a, $users);
+
+    if (bta_is_merch($a)) return;   // a merch store is priced per product, above
 
     // Pricing
     echo '<h2 style="margin-top:32px">Pricing</h2>';

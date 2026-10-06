@@ -220,7 +220,14 @@ function bta_mail_order_html($order, $account, $user, $items, $art, $audience = 
     $dec    = bta_decorations();
 
     /* Intro */
-    if ($audience === 'shop') {
+    $type = isset($order->order_type) ? (string) $order->order_type : '';
+    if ($type !== '') {
+        $kind  = $type === 'ondemand' ? 'an on-demand order for a web-store customer' : 'a bulk order';
+        $intro = $audience === 'shop'
+            ? '<p style="' . bta_mail_p() . '"><strong>' . esc_html($who) . '</strong> at <strong>' . esc_html($account ? $account->name : '')
+              . '</strong> submitted ' . $kind . ' from their product list. Garments and art are ours to supply.</p>'
+            : '<p style="' . bta_mail_p() . '">Thanks ' . esc_html($who) . ', we have your order. Here is a copy of what you sent us.</p>';
+    } elseif ($audience === 'shop') {
         $intro = '<p style="' . bta_mail_p() . '"><strong>' . esc_html($who) . '</strong> at <strong>'
                . esc_html($account ? $account->name : '') . '</strong> submitted an order through the portal. '
                . 'They are supplying the blanks and the artwork — review the art and price the job, then raise the card.</p>';
@@ -234,6 +241,11 @@ function bta_mail_order_html($order, $account, $user, $items, $art, $audience = 
     if ($audience === 'shop') $rows .= bta_mail_row('Account', $account ? $account->name : '');
     $rows .= bta_mail_row('End customer', $order->end_customer);
     $rows .= bta_mail_row('Their PO', $order->account_po);
+    if ($type !== '') {
+        $rows .= bta_mail_row('Type', bta_order_type_label($type));
+        $rows .= bta_mail_row('Store order #', $order->external_ref);
+        $rows .= bta_mail_row('Items total', (float) $order->subtotal > 0 ? bta_money($order->subtotal) . ' plus shipping' : '');
+    }
     $rows .= bta_mail_row('Total pieces', $qty);
     $rows .= bta_mail_row('In-hands date', $order->in_hands_date ? date_i18n('D, M j, Y', strtotime($order->in_hands_date)) : '');
     $rows .= bta_mail_row('Submitted', $order->submitted_at ? date_i18n('M j, Y \a\t g:ia', strtotime($order->submitted_at)) : '');

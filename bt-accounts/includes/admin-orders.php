@@ -45,6 +45,8 @@ function bta_handle_order_admin_post() {
         else bta_admin_notice('Status updated.');
     }
 
+    bta_merch_handle_order_post($action, $order_id, $by);
+
     if ($action === 'link_job') {
         $job = (int) $_POST['job_id'];
         bta_link_job_card($order_id, $job);
@@ -70,18 +72,19 @@ function bta_admin_orders_list() {
     echo '</ul><div style="clear:both"></div>';
 
     echo '<table class="widefat striped" style="margin-top:12px"><thead><tr>';
-    echo '<th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Submitted</th><th>Job card</th><th>Status</th><th></th>';
+    echo '<th>Order</th><th>Account</th><th>End customer</th><th>PO</th><th>Pieces</th><th>Balance</th><th>Submitted</th><th>Job card</th><th>Status</th><th></th>';
     echo '</tr></thead><tbody>';
-    if (!$orders) echo '<tr><td colspan="8">No orders.</td></tr>';
+    if (!$orders) echo '<tr><td colspan="10">No orders.</td></tr>';
     foreach ($orders as $o) {
         $acct = bta_get_account($o->account_id);
         $url  = add_query_arg('order', (int) $o->id, $base);
         echo '<tr>';
         echo '<td><strong><a href="' . esc_url($url) . '">' . esc_html($o->order_number) . '</a></strong></td>';
         echo '<td>' . esc_html($acct ? $acct->name : '—') . '</td>';
-        echo '<td>' . esc_html($o->end_customer) . '</td>';
+        echo '<td>' . esc_html($o->end_customer) . ($o->order_type !== '' ? ' <span style="color:#666">(' . esc_html(bta_order_type_label($o->order_type)) . ')</span>' : '') . '</td>';
         echo '<td>' . esc_html($o->account_po !== '' ? $o->account_po : '—') . '</td>';
         echo '<td>' . esc_html(bta_order_qty($o->id)) . '</td>';
+        echo '<td>' . ($o->order_type !== '' && bta_order_total($o) > 0 ? esc_html(bta_money(bta_order_balance($o))) : '—') . '</td>';
         echo '<td>' . esc_html($o->submitted_at ? date_i18n('M j, Y', strtotime($o->submitted_at)) : '—') . '</td>';
         echo '<td>' . ($o->job_id ? '#' . (int) $o->job_id : '<span style="color:#b26d00">not raised</span>') . '</td>';
         echo '<td>' . esc_html(bta_status_label($o->status)) . '</td>';
@@ -111,6 +114,13 @@ function bta_admin_order_detail($order) {
     echo '<table class="widefat" style="margin-bottom:16px"><tbody>';
     echo '<tr><td style="width:180px">Submitted by</td><td>' . esc_html($user ? ($user->display_name ? $user->display_name : $user->username) : '—')
        . ($order->submitted_at ? ' on ' . esc_html(date_i18n('M j, Y g:ia', strtotime($order->submitted_at))) : '') . '</td></tr>';
+    if ($order->order_type !== '') {
+        echo '<tr><td>Type</td><td><strong>' . esc_html(bta_order_type_label($order->order_type)) . ' order</strong>'
+           . ($order->external_ref !== '' ? ' &nbsp;<span style="color:#666">store order #' . esc_html($order->external_ref) . '</span>' : '') . '</td></tr>';
+        if ($order->ship_email !== '' || $order->ship_phone !== '') {
+            echo '<tr><td>Customer contact</td><td>' . esc_html(implode(' · ', array_filter(array($order->ship_email, $order->ship_phone)))) . '</td></tr>';
+        }
+    }
     echo '<tr><td>End customer</td><td><strong>' . esc_html($order->end_customer) . '</strong></td></tr>';
     echo '<tr><td>Their PO</td><td>' . esc_html($order->account_po !== '' ? $order->account_po : '—') . '</td></tr>';
     echo '<tr><td>Blanks supplier</td><td>' . esc_html($order->supplier_name !== '' ? $order->supplier_name : '—')
@@ -167,6 +177,8 @@ function bta_admin_order_detail($order) {
     echo '<input name="note" placeholder="Note (optional, shown to them)" style="width:100%;margin-bottom:8px">';
     echo '<button class="button button-primary">Update status</button>';
     echo '</form></div>';
+
+    if ($order->order_type !== '') bta_admin_order_money($order);
 
     echo '<div class="card" style="max-width:none"><h2 style="margin-top:0">Job card</h2>';
     echo '<p class="description">Raise the card on the BT Portal board, then put its id here. Status then follows the card automatically.</p>';

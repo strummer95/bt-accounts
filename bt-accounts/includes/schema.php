@@ -6,11 +6,20 @@
  * Order tables land in Phase 4 as v2 so the order shape can be settled first.
  * v3: print/embroidery locations and a price per item line, and the Printavo
  *     link on each order. dbDelta adds the new columns to existing tables.
- * v4: one-time links on each login (invite / password reset), hash only.
+ * v4: merch-store accounts (Leonid & Friends first): a product list, an art
+ *     library, bulk / on-demand orders with prices, and payments.
+ * v5: colour versions on library art; Leonid's Bottle Cap design.
+ * v6: print-location boxes per product, for mockups.
+ * v7: Leonid's Deep in the Heart of Texas and Make Me Smile Tour 2026 designs.
+ * v8: garment-colour limits on art, a second print location per line with its
+ *     own price per product, and Leonid's Tour 2026 record and Fall 2026 dates.
+ * v9: a design can come with its own back print (the tour fronts carry the
+ *     Fall 2026 dates); a back that belongs to a front is not offered alone.
+ * v10: one-time links on each login (invite / password reset), hash only.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 4);
+define('BTA_SCHEMA_VERSION', 10);
 
 function bta_table($name) {
     global $wpdb;
@@ -36,6 +45,7 @@ function bta_install_schema() {
         pricing_profile LONGTEXT NULL,
         can_buy_garments TINYINT(1) NOT NULL DEFAULT 0,
         requires_po TINYINT(1) NOT NULL DEFAULT 1,
+        kind VARCHAR(20) NOT NULL DEFAULT 'contract',
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
         PRIMARY KEY (id),
@@ -114,6 +124,15 @@ function bta_install_schema() {
         ship_zip VARCHAR(20) NOT NULL DEFAULT '',
         ship_method VARCHAR(60) NOT NULL DEFAULT '',
         notes MEDIUMTEXT NULL,
+        order_type VARCHAR(20) NOT NULL DEFAULT '',
+        external_ref VARCHAR(120) NOT NULL DEFAULT '',
+        event_name VARCHAR(190) NOT NULL DEFAULT '',
+        ship_email VARCHAR(190) NOT NULL DEFAULT '',
+        ship_phone VARCHAR(40) NOT NULL DEFAULT '',
+        subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+        shipping DECIMAL(10,2) NOT NULL DEFAULT 0,
+        adjustment DECIMAL(10,2) NOT NULL DEFAULT 0,
+        amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
         status VARCHAR(60) NOT NULL DEFAULT 'Submitted',
         job_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         printavo_state VARCHAR(20) NOT NULL DEFAULT '',
@@ -141,6 +160,7 @@ function bta_install_schema() {
         order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         sort_order INT NOT NULL DEFAULT 0,
         catalog_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        product_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         style_no VARCHAR(60) NOT NULL DEFAULT '',
         style_name VARCHAR(255) NOT NULL DEFAULT '',
         brand VARCHAR(120) NOT NULL DEFAULT '',
@@ -152,6 +172,7 @@ function bta_install_schema() {
         art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
         locations MEDIUMTEXT NULL,
         unit_price DECIMAL(10,2) NULL,
+        line_total DECIMAL(10,2) NULL,
         price_note VARCHAR(255) NOT NULL DEFAULT '',
         notes TEXT NULL,
         PRIMARY KEY (id),
@@ -182,6 +203,78 @@ function bta_install_schema() {
         KEY order_id (order_id)
     ) $charset;");
 
+    /* ── v4: merch stores ─────────────────────────────────────────────────── */
+
+    $products = bta_table('products');
+    $library  = bta_table('art_library');
+    $payments = bta_table('payments');
+
+    dbDelta("CREATE TABLE $products (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        name VARCHAR(190) NOT NULL DEFAULT '',
+        store_ref VARCHAR(190) NOT NULL DEFAULT '',
+        style_no VARCHAR(60) NOT NULL DEFAULT '',
+        brand VARCHAR(120) NOT NULL DEFAULT '',
+        colors VARCHAR(255) NOT NULL DEFAULT '',
+        sizes VARCHAR(255) NOT NULL DEFAULT '',
+        channels VARCHAR(20) NOT NULL DEFAULT 'both',
+        image_url TEXT NULL,
+        decoration VARCHAR(40) NOT NULL DEFAULT 'print',
+        placement VARCHAR(120) NOT NULL DEFAULT '',
+        art_ids VARCHAR(255) NOT NULL DEFAULT '',
+        zones TEXT NULL,
+        bulk_price DECIMAL(10,2) NULL,
+        ondemand_price DECIMAL(10,2) NULL,
+        upcharge DECIMAL(10,2) NOT NULL DEFAULT 0,
+        extra_price DECIMAL(10,2) NULL,
+        notes TEXT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY account_id (account_id),
+        KEY status (status)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $library (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        name VARCHAR(190) NOT NULL DEFAULT '',
+        file_url TEXT NULL,
+        file_name VARCHAR(255) NOT NULL DEFAULT '',
+        preview_url TEXT NULL,
+        placement VARCHAR(120) NOT NULL DEFAULT '',
+        colors VARCHAR(190) NOT NULL DEFAULT '',
+        notes TEXT NULL,
+        variants MEDIUMTEXT NULL,
+        garment_colors VARCHAR(255) NOT NULL DEFAULT '',
+        back_art_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        added_by VARCHAR(20) NOT NULL DEFAULT 'shop',
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        KEY account_id (account_id),
+        KEY status (status)
+    ) $charset;");
+
+    dbDelta("CREATE TABLE $payments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        account_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+        amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        method VARCHAR(60) NOT NULL DEFAULT '',
+        reference VARCHAR(190) NOT NULL DEFAULT '',
+        stripe_session VARCHAR(190) NULL,
+        note VARCHAR(255) NOT NULL DEFAULT '',
+        recorded_by VARCHAR(190) NOT NULL DEFAULT '',
+        paid_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+        PRIMARY KEY (id),
+        UNIQUE KEY stripe_session (stripe_session),
+        KEY order_id (order_id),
+        KEY account_id (account_id)
+    ) $charset;");
+
     // v2 also adds a per-account order-number prefix.
     $acc_cols = $wpdb->get_col("DESC $accounts", 0);
     if (is_array($acc_cols) && !in_array('order_prefix', $acc_cols, true)) {
@@ -189,6 +282,237 @@ function bta_install_schema() {
     }
 
     update_option('bta_schema_version', BTA_SCHEMA_VERSION);
+
+    bta_seed_leonid();
+    bta_seed_bottle_cap();
+    bta_seed_leonid_designs();
+    bta_seed_leonid_tour();
+    bta_seed_leonid_tour_backs();
+}
+
+/** Dillon: the tour dates only go on the back of the tour-front shirts. */
+function bta_seed_leonid_tour_backs() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_backs_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib   = bta_table('art_library');
+    $dates = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, 'Fall 2026 Tour Dates'));
+    if (!$dates) return;
+    foreach (array('Make Me Smile Tour 2026 (Van)', 'Make Me Smile Tour 2026 (Record)') as $front) {
+        $wpdb->update($lib, array('back_art_id' => $dates), array('account_id' => $acct_id, 'name' => $front));
+    }
+    update_option('bta_seed_leonid_backs_done', 1);
+}
+
+/**
+ * Leonid's second Tour 2026 front (the record) and the Fall 2026 tour-dates
+ * back. The dates are white text, so they go on black shirts only. The first
+ * Tour 2026 design becomes "(Van)" so the two can be told apart.
+ */
+function bta_seed_leonid_tour() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_tour_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib = bta_table('art_library');
+
+    $wpdb->update($lib, array('name' => 'Make Me Smile Tour 2026 (Van)'),
+        array('account_id' => $acct_id, 'name' => 'Make Me Smile Tour 2026'));
+
+    $designs = array(
+        array('Make Me Smile Tour 2026 (Record)', 'make-me-smile-tour-2026-record.png', 'leonid-make-me-smile-tour-2026-record.png', '', 'Full Front', '', 'Record, Tour 2026 and the band logo.'),
+        array('Fall 2026 Tour Dates', 'fall-2026-tour-dates.png', 'leonid-fall-2026-tour-dates.png', 'fall-2026-tour-dates-preview.png', 'Full Back', 'Black', 'Band logo, Make Me Smile Fall 2026 and every date, Sept 13 to Nov 28. White text: black shirts only.'),
+    );
+    foreach ($designs as $d) {
+        if ($wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, $d[0]))) continue;
+        $url  = bta_seed_art_file($d[1], $d[2]);
+        $prev = $d[3] !== '' ? bta_seed_art_file($d[3], 'leonid-' . $d[3]) : $url;
+        $wpdb->insert($lib, array(
+            'account_id'     => $acct_id,
+            'name'           => $d[0],
+            'file_url'       => $url,
+            'file_name'      => $d[2],
+            'preview_url'    => $prev,
+            'placement'      => $d[4],
+            'garment_colors' => $d[5],
+            'colors'         => '',
+            'notes'          => $d[6],
+            'variants'       => '',
+            'added_by'       => 'shop',
+            'status'         => 'active',
+            'created_at'     => current_time('mysql'),
+        ));
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+    update_option('bta_seed_leonid_tour_done', 1);
+}
+
+/**
+ * Copy one design file shipped in assets/art/ into the uploads art folder
+ * (once) and return its URL there, or the plugin URL if the copy fails.
+ */
+function bta_seed_art_file($src_name, $dest_name) {
+    $src = BTA_DIR . 'assets/art/' . $src_name;
+    $url = BTA_URL . 'assets/art/' . $src_name;
+    $up  = wp_upload_dir();
+    if (!empty($up['error']) || !file_exists($src)) return $url;
+    $dir = $up['basedir'] . '/bt-accounts-art';
+    if (!is_dir($dir)) wp_mkdir_p($dir);
+    if (file_exists($dir . '/' . $dest_name) || @copy($src, $dir . '/' . $dest_name)) {
+        return $up['baseurl'] . '/bt-accounts-art/' . $dest_name;
+    }
+    return $url;
+}
+
+/** Leonid's full-front shirt designs (Oct 5 2026). One run; deleting one later sticks. */
+function bta_seed_leonid_designs() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_designs_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+    $lib = bta_table('art_library');
+
+    $designs = array(
+        array('Deep in the Heart of Texas', 'deep-in-the-heart-of-texas.png', 'leonid-deep-in-the-heart-of-texas.png', 'Texas flag state with the band logo, rider and cactus.'),
+        array('Make Me Smile Tour 2026',    'make-me-smile-tour-2026.png',    'leonid-make-me-smile-tour-2026.png',    'Tour van, wave, palm and flowers.'),
+    );
+    foreach ($designs as $d) {
+        if ($wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, $d[0]))) continue;
+        $url = bta_seed_art_file($d[1], $d[2]);
+        $wpdb->insert($lib, array(
+            'account_id'  => $acct_id,
+            'name'        => $d[0],
+            'file_url'    => $url,
+            'file_name'   => $d[2],
+            'preview_url' => $url,
+            'placement'   => 'Full Front',
+            'colors'      => '',
+            'notes'       => $d[3],
+            'variants'    => '',
+            'added_by'    => 'shop',
+            'status'      => 'active',
+            'created_at'  => current_time('mysql'),
+        ));
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+    update_option('bta_seed_leonid_designs_done', 1);
+}
+
+/**
+ * Leonid's Bottle Cap design ("Make Me Smile" roundel), shipped inside the
+ * plugin because Dillon works only through the dashboard. Copied once into the
+ * uploads art folder so its link outlives plugin updates. Goes on the cap's
+ * front or a shirt's left chest; the cap version follows the cap colour.
+ * Versions 2 and 3 have no files yet: the shop pastes their links in later.
+ */
+function bta_seed_bottle_cap() {
+    global $wpdb;
+    if (get_option('bta_seed_bottlecap_done')) return;
+    $acct_id = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM " . bta_table('accounts') . " WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) return;
+
+    $urls = array();
+    $up   = wp_upload_dir();
+    foreach (array('pdf', 'png') as $ext) {
+        $src  = BTA_DIR . 'assets/art/bottle-cap.' . $ext;
+        $urls[$ext] = BTA_URL . 'assets/art/bottle-cap.' . $ext;
+        if (empty($up['error']) && file_exists($src)) {
+            $dir = $up['basedir'] . '/bt-accounts-art';
+            if (!is_dir($dir)) wp_mkdir_p($dir);
+            if (file_exists($dir . '/leonid-bottle-cap.' . $ext) || @copy($src, $dir . '/leonid-bottle-cap.' . $ext)) {
+                $urls[$ext] = $up['baseurl'] . '/bt-accounts-art/leonid-bottle-cap.' . $ext;
+            }
+        }
+    }
+    if (function_exists('bta_protect_art_dir')) bta_protect_art_dir();
+
+    $lib = bta_table('art_library');
+    if (!$wpdb->get_var($wpdb->prepare("SELECT id FROM $lib WHERE account_id = %d AND name = %s", $acct_id, 'Bottle Cap'))) {
+        $wpdb->insert($lib, array(
+            'account_id'  => $acct_id,
+            'name'        => 'Bottle Cap',
+            'file_url'    => $urls['pdf'],
+            'file_name'   => 'leonid-bottle-cap.pdf',
+            'preview_url' => $urls['png'],
+            'placement'   => 'Hat Front, Left Chest',
+            'colors'      => '',
+            'notes'       => 'Make Me Smile roundel. Hat front or left chest.',
+            'variants'    => wp_json_encode(array(
+                array('label' => '1', 'colors' => array('Black'), 'file_url' => $urls['pdf'], 'preview_url' => $urls['png'], 'note' => 'Full colour'),
+                array('label' => '2', 'colors' => array('Red'), 'file_url' => '', 'preview_url' => '', 'note' => 'Blue and yellow'),
+                array('label' => '3', 'colors' => array('Khaki', 'Brown'), 'file_url' => '', 'preview_url' => '', 'note' => 'Yellow and red'),
+            )),
+            'added_by'    => 'shop',
+            'status'      => 'active',
+            'created_at'  => current_time('mysql'),
+        ));
+    }
+    update_option('bta_seed_bottlecap_done', 1);
+}
+
+/**
+ * Leonid & Friends: the first merch-store account, with Kim's login.
+ * Runs once. If Dillon later deletes or renames either, it does not come back.
+ * Only a bcrypt hash of the starting password is kept here, never the password.
+ */
+function bta_seed_leonid() {
+    global $wpdb;
+    if (get_option('bta_seed_leonid_done')) return;
+
+    $accounts = bta_table('accounts');
+    $acct_id  = (int) $wpdb->get_var($wpdb->prepare("SELECT id FROM $accounts WHERE slug = %s", 'leonid-and-friends'));
+    if (!$acct_id) {
+        $wpdb->insert($accounts, array(
+            'name'             => 'Leonid & Friends',
+            'slug'             => 'leonid-and-friends',
+            'order_prefix'     => 'LAF',
+            'logo_url'         => '',
+            'brand_color'      => '#27267e',
+            'pricing_profile'  => wp_json_encode(array()),
+            'can_buy_garments' => 1,
+            'requires_po'      => 0,
+            'kind'             => 'merch',
+            'status'           => 'active',
+            'created_at'       => current_time('mysql'),
+        ));
+        $acct_id = (int) $wpdb->insert_id;
+    }
+
+    $users = bta_table('users');
+    if ($acct_id && !$wpdb->get_var($wpdb->prepare("SELECT id FROM $users WHERE username = %s", 'kim'))) {
+        $wpdb->insert($users, array(
+            'account_id'       => $acct_id,
+            'username'         => 'kim',
+            'pass_hash'        => '$2y$10$9S8NBAuBaQ7UEFnlZc4wTeqEgGwqRyMzHFX26oecaJl8.Rc66Ne0a',
+            'display_name'     => 'Kim',
+            'email'            => '',
+            'is_account_admin' => 1,
+            'status'           => 'active',
+            'created_at'       => current_time('mysql'),
+        ));
+    }
+
+    // The store's line-up as Dillon gave it. Prices are left for the shop to set.
+    $products = bta_table('products');
+    if ($acct_id && !$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $products WHERE account_id = %d", $acct_id))) {
+        $seed = array(
+            array('Heavy Cotton Tee', 'Gildan',         '5000',   'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL,4XL,5XL', 'both',     'print',      'Full Front'),
+            array('Ladies Heavy Cotton V-Neck', 'Gildan',         '5V00L',  'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL',         'both',     'print',      'Full Front'),
+            array('Heavy Cotton Long Sleeve Tee', 'Gildan',         '5400',   'Black,Sport Grey,White',         'S,M,L,XL,2XL,3XL',         'both',     'print',      'Full Front'),
+            array('Chino Cap', 'Valucap',        'VC300A', 'Black,White,Khaki,Red',          'OSFA',                     'both',     'embroidery', 'Hat Front'),
+            array('Ladies Core Cotton V-Neck', 'Port & Company', 'LPC54V', 'Black,White',            'S,M,L,XL,2XL,3XL,4XL',     'ondemand', 'print',      'Full Front'),
+        );
+        foreach ($seed as $i => $r) {
+            $wpdb->insert($products, array(
+                'account_id' => $acct_id, 'name' => $r[0], 'brand' => $r[1], 'style_no' => $r[2],
+                'colors' => $r[3], 'sizes' => $r[4], 'channels' => $r[5], 'decoration' => $r[6],
+                'placement' => $r[7], 'sort_order' => $i, 'status' => 'active', 'created_at' => current_time('mysql'),
+            ));
+        }
+    }
+
+    if ($acct_id) update_option('bta_seed_leonid_done', 1);
 }
 
 /** Housekeeping: drop dead sessions and stale attempt rows. */

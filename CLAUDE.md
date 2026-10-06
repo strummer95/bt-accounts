@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.14.0**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.3**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -28,7 +28,7 @@ Four places must match or WordPress loops forever trying to reinstall:
 4. The version inside the zip
 
 Steps: edit under `bt-accounts/`, bump both version spots, `node --check` touched JS
-(no PHP binary in the container, brace-audit by hand), build `bt-accounts-X.Y.Z.zip` plus
+and `php -l` touched PHP (the container has PHP 8.3 now), build `bt-accounts-X.Y.Z.zip` plus
 plain `bt-accounts.zip` at the repo root, update `manifest.json` with the version, the
 **versioned** raw `download_url` and a changelog entry, commit and push to `main`. Dillon
 then does **BT Accounts → Check for updates** (the panel at the bottom of the BT Accounts
@@ -132,7 +132,7 @@ quote # with Try again / Send again. Failures email the shop and never touch the
 - Order form fields are `item[i][...]` with explicit indexes; the old `item_x[]` arrays shifted
   sizes onto the wrong line when one was removed.
 
-## Invites and email sign-in (0.14.0)
+## Invites and email sign-in (0.16.3, schema 10)
 
 `includes/invites.php`. People sign in with their **email**; the shop invites by name + email
 (account page → Invite someone). Invited logins have `status = 'invited'`, `username` = the
@@ -143,6 +143,79 @@ signed straight in), `/accounts/forgot` (3 links per address per hour), `/accoun
 (change while signed in; kills other sessions). Legacy hand-made logins still sign in by
 username (`bta_get_user_for_signin()`: username first, then email). Min password 8 for
 self-set. Tested against a throwaway database: 17 cases incl. expiry and single use.
+
+## Merch stores (0.13.2)
+
+Second account kind: `accounts.kind` = `contract` (default, they send blanks) or `merch` (a band or
+brand whose web store we print for). **Leonid & Friends** is the first: prefix `LAF`, login `kim`,
+seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt hash is in the repo).
+
+- `includes/merch.php` model · `portal-merch.php` portal tabs · `admin-merch.php` wp-admin ·
+  `assets/merch-form.js`. Tables v4: `bta_products`, `bta_art_library`, `bta_payments`.
+- Product = one style with a colour list, sizes, `channels` (both / bulk / ondemand), bulk and
+  on-demand price per piece, 2XL+ upcharge, and the library art it may carry (none = any).
+  Seeded line-up (Dillon's): Gildan 5000 / 5V00L / 5400 in Black, Sport Grey, White and Valucap
+  VC300A in Black, White, Khaki, Red on both; Port & Company LPC54V Black/White on-demand only.
+  Prices left blank on purpose (shop sets them; blank shows "Ask" and the line comes in unpriced).
+- Order form (0.13.3, Dillon's design): no pre-made list. **Add item** → pick garment by picture
+  tile → pick design (skipped with 0–1 designs) → size grid, one row per colour. Fields
+  `line[i][product]`, `line[i][art]`, `line[i][qty][colour][size]`; each colour with a qty becomes
+  its own order line. Same builder for bulk and on demand. Pictures: `bta_product_image()` = the
+  product's image URL, else BT Catalog's photo of the **black** colourway (Dillon's call) for the
+  same `style_no`, read from the catalog row's `colors` JSON (`[name, hex, img, swatch…]` per colour,
+  0.13.4). Each colour row in the size grid shows that colour's catalog photo.
+- Art (0.14.0, schema 5): `art_library.placement` may list several (`Hat Front, Left Chest`);
+  `bta_line_placement()` gives a hat (`bta_product_is_hat()`, by name) the hat one and a shirt the
+  other. `art_library.variants` = colour versions (label / garment colours / file / preview / note);
+  `bta_art_version()` picks by line colour, else the row's own file. Each version is copied to
+  `order_art` separately, labelled `Bottle Cap (version 2)`.
+- **Bottle Cap** (Leonid, "Make Me Smile" roundel) ships in `assets/art/` (PDF 8.5 MB + PNG);
+  `bta_seed_bottle_cap()` copies it to `uploads/bt-accounts-art/leonid-bottle-cap.*` once. After a
+  release where that has run live, the files can come out of `assets/art/` to shrink the zip.
+  Cap versions per Dillon's Chipply table: 1 Black, 2 Red (blue/yellow), 3 Khaki + Brown
+  (yellow/red). Versions 2 and 3 have no files yet; White cap gets the default (version 1 file).
+- Mockups (0.15.0, schema 6), borrowed from PresStora (`pressly` repo, `includes/zones.php`):
+  a print location is a box on the product photo, x/y/w/h in % of the image; art is
+  contain-fitted and centred in it. Same location keys (`full_front`, `left_chest`, `right_chest`,
+  `hat`, …); `bta_location_key()` maps labels ("Hat Front" → `hat`). PresStora's real boxes are
+  drawn per style in its DB (nothing to copy), so `bta_default_zones()` holds starting boxes.
+  0.16.1: PresStora's 25/20/50/55 drew art ~1.6x too big on catalog photos (Dillon); now sized from
+  his Chipply mockup (full front ≈ ⅓ shirt width under the collar): tee full front 36.5/22/27/33,
+  left chest 56/22/10/10, ladies full front 37.5/26/25/30, hat 36/29/28/22. And
+  `products.zones` stores the shop's full set from the drag editor on the product form (a saved
+  set replaces the defaults). Left chest = wearer's left = right side of the photo.
+  "Put art X at location Y" = set the art's placement to Y; the mockup uses the product's Y box.
+- More Leonid designs (0.15.1, schema 7, `bta_seed_leonid_designs()`): Deep in the Heart of Texas
+  and Make Me Smile Tour 2026, Full Front, PNGs (from Dillon's webps) in `assets/art/`. Design
+  choices are filtered by `bta_art_fits()`: a cap only gets art with a hat placement, a shirt only
+  art with a non-hat one.
+- 0.16.0 (schema 8): `art_library.garment_colors` limits a design to garment colours
+  (`bta_art_on_color()`; Fall 2026 Tour Dates is white text → Black only). A form card can add a
+  **second print** at a different location (`line[i][extra]`, e.g. dates on the back); it becomes a
+  second entry in the line's `locations`, and `products.extra_price` is added per piece (blank =
+  line priced by the shop). Seeded by `bta_seed_leonid_tour()`: Tour 2026 (Record) Full Front, Fall
+  2026 Tour Dates Full Back; the earlier Tour 2026 renamed "(Van)". No back photos, so a back-only
+  design shows as the art itself instead of a mockup.
+- 0.16.2 (schema 9), Dillon: "the tour back only goes on the back of the tour front shirts; the
+  rest are a single front print." So no free second-print picker: `art_library.back_art_id` pairs a
+  front with its back (`bta_art_back()`); the server takes the back from the chosen design, never
+  from the form. A design that is some other design's back is hidden from the choices. Seeded by
+  `bta_seed_leonid_tour_backs()`: Tour 2026 (Van) and (Record) → Fall 2026 Tour Dates. The dates are
+  Black only, so the tour shirts are Black only.
+- **Bulk** = stock they order (shows, tours). **On demand** = one web-store (Chipply) customer's order,
+  shipped to that customer; `external_ref` holds the store order # and blocks double entry.
+- Merch orders use the same orders table (`order_type` bulk / ondemand). Library art used on a
+  line is copied into `order_art` so print sheet, emails, staff screen and Printavo read it
+  unchanged. Prices come from the product server-side, never from the form.
+- Money: `subtotal` (sum of `line_total`) + `shipping` + `adjustment` − `amount_paid`. The shop
+  edits line prices, shipping and adjustment and records payments on the wp-admin order page.
+- Card payments: Stripe Checkout through `wp_remote_request`, no SDK, secret key in
+  `bta_stripe_secret`. On return the session is fetched from Stripe and recorded once (unique
+  `stripe_session`). No webhook yet, so a payer who closes the tab before the return page loads
+  isn't marked paid. Stripe shows it and the shop records it by hand.
+- Not built yet: pulling store orders in automatically (Dillon: separate conversation), back-of-shirt
+  photos for back-print mockups, version 2 and 3 Bottle Cap files. Art still ships in `assets/art/`
+  (~20 MB zip); strip it once Dillon confirms the designs show in the live Artwork tab.
 
 ## Sign-in diagnostics
 
