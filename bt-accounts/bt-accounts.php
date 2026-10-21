@@ -19,6 +19,7 @@ function bta_portal_slug() {
     return apply_filters('bta_portal_slug', 'accounts');
 }
 
+require_once BTA_DIR . 'includes/secrets.php';
 require_once BTA_DIR . 'includes/schema.php';
 require_once BTA_DIR . 'includes/accounts.php';
 require_once BTA_DIR . 'includes/auth.php';

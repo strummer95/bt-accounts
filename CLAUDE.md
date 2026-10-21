@@ -157,7 +157,8 @@ login in the same browser. Hidden from `bta_get_account_users()`; can't sign in 
 
 Second account kind: `accounts.kind` = `contract` (default, they send blanks) or `merch` (a band or
 brand whose web store we print for). **Leonid & Friends** is the first: prefix `LAF`, login `kim`,
-seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt hash is in the repo).
+seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; no password or hash in the repo, a fresh install gets a
+blank one for the shop to set).
 
 - `includes/merch.php` model · `portal-merch.php` portal tabs · `admin-merch.php` wp-admin ·
   `assets/merch-form.js`. Tables v4: `bta_products`, `bta_art_library`, `bta_payments`.
@@ -225,6 +226,15 @@ seeded once by `bta_seed_leonid()` (option `bta_seed_leonid_done`; only a bcrypt
 - Not built yet: pulling store orders in automatically (Dillon: separate conversation), back-of-shirt
   photos for back-print mockups, version 2 and 3 Bottle Cap files. Art still ships in `assets/art/`
   (~20 MB zip); strip it once Dillon confirms the designs show in the live Artwork tab.
+
+## Secrets (this repo is public)
+
+No key, password or password hash is ever written in this repo. `includes/secrets.php` reads
+the Stripe key and Printavo token from wp-config.php constants first (`BTA_STRIPE_SECRET`,
+`BTA_PRINTAVO_TOKEN`), else from their options, which the settings save encrypted
+(`bta_seal()`, keyed from the site's AUTH salts). A value saved before that is plain text and
+still reads until saved again. `includes/updater.php` only accepts a `download_url` on
+`raw.githubusercontent.com/strummer95/bt-accounts/`.
 
 ## Sign-in diagnostics
 
