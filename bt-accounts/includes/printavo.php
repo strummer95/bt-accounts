@@ -26,7 +26,7 @@ function bta_pv_endpoint() {
 }
 
 function bta_pv_email()      { return trim((string) get_option('bta_pv_email', '')); }
-function bta_pv_token()      { return trim((string) get_option('bta_pv_token', '')); }
+function bta_pv_token()      { return bta_secret('BTA_PRINTAVO_TOKEN', get_option('bta_pv_token', '')); }
 function bta_pv_status_id()  { return (string) get_option('bta_pv_status_id', ''); }
 function bta_pv_configured() { return bta_pv_email() !== '' && bta_pv_token() !== ''; }
 
@@ -1180,7 +1180,7 @@ function bta_pv_handle_admin_post($action) {
         $old_email = bta_pv_email();
         update_option('bta_pv_email', sanitize_email(wp_unslash(isset($_POST['pv_email']) ? $_POST['pv_email'] : '')));
         $token = isset($_POST['pv_token']) ? trim(sanitize_text_field(wp_unslash($_POST['pv_token']))) : '';
-        if ($token !== '') update_option('bta_pv_token', $token, false);
+        if ($token !== '') update_option('bta_pv_token', bta_seal($token), false);   // stored encrypted, see secrets.php
         if (!empty($_POST['pv_forget_token'])) delete_option('bta_pv_token');
         update_option('bta_pv_status_id', sanitize_text_field(wp_unslash(isset($_POST['pv_status']) ? $_POST['pv_status'] : '')));
         update_option('bta_pv_auto', !empty($_POST['pv_auto']) ? 1 : 0);

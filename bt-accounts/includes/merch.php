@@ -782,7 +782,7 @@ function bta_refresh_subtotal($order_id) {
 /* ── Card payments (Stripe Checkout) ─────────────────────────────────────── */
 
 function bta_stripe_key() {
-    return trim((string) get_option('bta_stripe_secret', ''));
+    return bta_secret('BTA_STRIPE_SECRET', get_option('bta_stripe_secret', ''));
 }
 
 function bta_stripe_on() {

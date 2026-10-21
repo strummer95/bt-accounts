@@ -454,7 +454,8 @@ function bta_seed_bottle_cap() {
 /**
  * Leonid & Friends: the first merch-store account, with Kim's login.
  * Runs once. If Dillon later deletes or renames either, it does not come back.
- * Only a bcrypt hash of the starting password is kept here, never the password.
+ * No password or hash is kept here (this repo is public). On a fresh install
+ * the shop sets Kim's password or sends her a reset link from the account page.
  */
 function bta_seed_leonid() {
     global $wpdb;
@@ -484,7 +485,7 @@ function bta_seed_leonid() {
         $wpdb->insert($users, array(
             'account_id'       => $acct_id,
             'username'         => 'kim',
-            'pass_hash'        => '$2y$10$9S8NBAuBaQ7UEFnlZc4wTeqEgGwqRyMzHFX26oecaJl8.Rc66Ne0a',
+            'pass_hash'        => '',   // no password in a public repo: the shop sets one or sends a reset link
             'display_name'     => 'Kim',
             'email'            => '',
             'is_account_admin' => 1,

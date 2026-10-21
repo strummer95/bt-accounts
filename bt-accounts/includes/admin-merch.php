@@ -56,7 +56,7 @@ function bta_merch_handle_admin_post($action) {
 
     if ($action === 'save_payments') {
         $key = trim((string) $post('stripe_secret'));
-        if ($key !== '') update_option('bta_stripe_secret', sanitize_text_field($key), false);
+        if ($key !== '') update_option('bta_stripe_secret', bta_seal(sanitize_text_field($key)), false);   // stored encrypted, see secrets.php
         if (!empty($_POST['stripe_clear'])) delete_option('bta_stripe_secret');
         update_option('bta_pay_instructions', sanitize_textarea_field($post('pay_instructions')));
         bta_admin_notice('Payment settings saved.');
