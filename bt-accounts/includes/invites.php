@@ -215,54 +215,84 @@ function bta_handle_set_password() {
     exit;
 }
 
-/** /accounts/forgot — email a reset link. */
+/**
+ * /accounts/forgot — email a reset link.
+ *
+ * The response is deliberately identical whether or not the typed username/
+ * email matches a login, whether that login has an email on file, or whether
+ * sending throttled on the account side: wording is the only thing a stranger
+ * gets back, and it must not say which of those happened. This is separate
+ * from bta_specific_errors(), which only ever applies to a signed-in attempt
+ * with a password already supplied (see "Sign-in diagnostics" in CLAUDE.md) —
+ * it must never affect this screen.
+ */
 function bta_handle_forgot() {
     $msg = '';
     $kind = 'alert';
     $typed = '';
+    $generic_sent = 'If that username or email has a login with us, a link to set a new password is on its way. '
+        . 'It can take a few minutes — check your spam folder too.';
+
     if (!empty($_POST['bta_forgot'])) {
         $typed = trim((string) wp_unslash(isset($_POST['email']) ? $_POST['email'] : ''));
-        $user = $typed !== '' ? bta_get_user_for_signin($typed) : null;
-
-        // At most 3 links per login per hour, so the form cannot be used to flood someone.
-        $key = 'bta_forgot_' . md5(strtolower($typed));
-        $sent = (int) get_transient($key);
 
         if ($typed === '') {
-            $msg = 'Enter the email address you sign in with.';
-        } elseif ($sent >= 3) {
-            $msg = 'We have already sent three links in the last hour. Check your inbox and spam folder, or email orders@boomerts.com.';
-        } elseif (!$user || $user->status === 'disabled' || $user->email === '') {
-            $msg = bta_specific_errors()
-                ? (!$user ? 'No login uses ' . $typed . '. Check the spelling, or email orders@boomerts.com.'
-                   : ($user->status === 'disabled' ? 'This login has been turned off. Email orders@boomerts.com and we will switch it back on.'
-                   : 'That login has no email address on file, so we cannot send a link. Email orders@boomerts.com and we will reset it.'))
-                : 'If that email has a login, a link to set a new password is on its way.';
-            if (!bta_specific_errors()) $kind = 'notice';
+            // Nothing was typed, so there is no account to name — safe to be specific.
+            $msg = 'Enter the username or email you sign in with.';
+        } elseif (bta_forgot_rate_limited($typed)) {
+            // Over the per-IP or per-account allowance: still the identical
+            // wording, so a flood attempt learns nothing an ordinary request
+            // would not have.
+            $kind = 'notice';
+            $msg = $generic_sent;
         } else {
-            set_transient($key, $sent + 1, HOUR_IN_SECONDS);
-            if (bta_send_reset($user)) {
-                $kind = 'notice';
-                $msg = 'Check your email. A link to choose ' . ($user->status === 'invited' ? 'your password' : 'a new password') . ' is on its way to ' . $user->email . '. It lasts ' . ($user->status === 'invited' ? BTA_INVITE_DAYS . ' days' : 'an hour') . '.';
-            } else {
-                $msg = 'The email could not be sent from our end. Please email orders@boomerts.com and we will reset it.';
+            bta_forgot_record_attempt($typed);
+            $user = bta_get_user_for_signin($typed);
+            if ($user && $user->status !== 'disabled' && $user->email !== '') {
+                bta_send_reset($user);
             }
+            // Sent, not found, no email on file, or the mail call failed —
+            // every one of those paths ends here with the same message.
+            $kind = 'notice';
+            $msg = $generic_sent;
         }
     }
 
     bta_head('Forgot your password · Boomer T\'s');
     bta_auth_card_open();
     echo '<h1 class="bta-auth-h">Forgot your password?</h1>';
-    echo '<p class="bta-auth-p">Enter the email you sign in with and we will send you a link to choose a new one.</p>';
+    echo '<p class="bta-auth-p">Enter the username or email you sign in with and we will send you a link to choose a new one.</p>';
     if ($msg) echo '<div class="bta-' . ($kind === 'notice' ? 'notice' : 'alert') . '" role="alert">' . esc_html($msg) . '</div>';
     echo '<form method="post"><input type="hidden" name="bta_forgot" value="1">';
-    echo '<div class="bta-field"><label class="bta-label" for="bta-fe">Email</label>';
-    echo '<input class="bta-input" id="bta-fe" name="email" type="email" value="' . esc_attr($typed) . '" autocapitalize="none" spellcheck="false" required autofocus></div>';
+    echo '<div class="bta-field"><label class="bta-label" for="bta-fe">Username or email</label>';
+    echo '<input class="bta-input" id="bta-fe" name="email" type="text" value="' . esc_attr($typed) . '" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></div>';
     echo '<button class="bta-btn" type="submit">Send me a link</button></form>';
     echo '<p class="bta-login-help"><a href="' . esc_url(home_url('/' . bta_portal_slug() . '/')) . '">&larr; Back to sign in</a></p>';
     bta_auth_card_close();
     bta_foot();
     exit;
+}
+
+/**
+ * Rate limit for the forgot-password form: at most 3 sends per typed login
+ * per hour (stops one account's inbox being flooded) and at most 10 per IP
+ * per hour (stops one visitor working through many addresses). Checked before
+ * recording, so the request that would tip either counter over is the one
+ * that gets throttled rather than the one after it.
+ */
+function bta_forgot_rate_limited($typed) {
+    $by_login = (int) get_transient('bta_forgot_u_' . md5(strtolower($typed)));
+    if ($by_login >= 3) return true;
+    $by_ip = (int) get_transient('bta_forgot_ip_' . md5(bta_client_ip()));
+    if ($by_ip >= 10) return true;
+    return false;
+}
+
+function bta_forgot_record_attempt($typed) {
+    $ukey = 'bta_forgot_u_' . md5(strtolower($typed));
+    set_transient($ukey, (int) get_transient($ukey) + 1, HOUR_IN_SECONDS);
+    $ikey = 'bta_forgot_ip_' . md5(bta_client_ip());
+    set_transient($ikey, (int) get_transient($ikey) + 1, HOUR_IN_SECONDS);
 }
 
 /** The branded card the sign-in page uses, for the other signed-out pages. */
@@ -314,4 +344,54 @@ function bta_portal_password($user, $error = '') {
     echo '<div class="bta-field"><label class="bta-label" for="bta-np2">Type it again</label><input class="bta-input" id="bta-np2" name="password2" type="password" minlength="' . BTA_MIN_PASSWORD . '" autocomplete="new-password" required></div>';
     echo '<button class="bta-btn bta-btn-inline" type="submit">Change password</button>';
     echo '</form></div>';
+}
+
+/* ── Require an email on logins made before invites existed ─────────────── */
+
+/**
+ * True when this login must add an email before doing anything else: a
+ * hand-made login from before invites existed (e.g. Leonid's "kim"), signed
+ * in with a username and no email on file. The hidden shop-<id> view-as
+ * login is exempt — it never has an email by design and is not a person.
+ */
+function bta_user_needs_email($user) {
+    return $user->status === 'active' && $user->email === '';
+}
+
+/** Handle the "add your email" form. Returns '' or an error; redirects on success. */
+function bta_handle_add_email($user) {
+    if (!bta_verify_csrf()) return 'Your session expired. Please try again.';
+    $email = sanitize_email(trim((string) wp_unslash(isset($_POST['email']) ? $_POST['email'] : '')));
+    if (!is_email($email)) return 'Enter a valid email address.';
+
+    $existing = bta_get_user_by_email($email);
+    if ($existing && (int) $existing->id !== (int) $user->id) {
+        return 'Another login already uses that email address.';
+    }
+
+    global $wpdb;
+    $wpdb->update(bta_table('users'), array('email' => strtolower($email)), array('id' => (int) $user->id));
+    wp_safe_redirect(bta_portal_url());
+    exit;
+}
+
+/** Blocking screen shown in place of the portal until the login has an email. */
+function bta_render_add_email($user, $error = '') {
+    bta_head('Add your email · Boomer T\'s');
+    bta_auth_card_open();
+    echo '<h1 class="bta-auth-h">Add your email</h1>';
+    echo '<p class="bta-auth-p">Your login (<strong>' . esc_html($user->username) . '</strong>) doesn&rsquo;t have an email on file yet. '
+        . 'Add one so you can get order updates and use &ldquo;Forgot your password?&rdquo; if you ever need it. You sign in with your username as before.</p>';
+    if ($error) echo '<div class="bta-alert" role="alert">' . esc_html($error) . '</div>';
+    echo '<form method="post">';
+    echo bta_csrf_field();
+    echo '<input type="hidden" name="bta_add_email" value="1">';
+    echo '<div class="bta-field"><label class="bta-label" for="bta-addemail">Email</label>';
+    echo '<input class="bta-input" id="bta-addemail" name="email" type="email" autocapitalize="none" spellcheck="false" required autofocus></div>';
+    echo '<button class="bta-btn" type="submit">Save and continue</button>';
+    echo '</form>';
+    echo '<p class="bta-login-help"><a href="' . esc_url(bta_portal_url('logout')) . '">Sign out</a></p>';
+    bta_auth_card_close();
+    bta_foot();
+    exit;
 }
