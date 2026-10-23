@@ -86,7 +86,7 @@ function bta_route_portal() {
 
     if (!bta_is_logged_in()) {
         if ($notice === '' && !empty($_GET['signedin'])) {
-            $notice = 'Your email and password were correct, but your browser did not keep the sign-in. '
+            $notice = 'Your username or email and password were correct, but your browser did not keep the sign-in. '
                     . 'That is usually cookies being blocked for this site, or a private/locked-down browser window. '
                     . 'Allow cookies for boomerts.com and try again, or email orders@boomerts.com.';
         }
@@ -97,6 +97,17 @@ function bta_route_portal() {
     $user    = bta_current_user();
     $account = $user->account;
     $errors  = array();
+
+    // ── Hand-made logins from before invites existed have no email. Block
+    // everything else until one is on file, so Forgot password and order
+    // notices work for them too. The hidden shop-<id> view-as login is never
+    // a real person and is exempt (bta_user_needs_email() excludes it).
+    if (bta_user_needs_email($user)) {
+        $add_error = '';
+        if (!empty($_POST['bta_add_email'])) $add_error = bta_handle_add_email($user);
+        bta_render_add_email($user, $add_error);
+        exit;
+    }
 
     if ($view === 'password' && !empty($_POST['bta_change_password'])) {
         $errors = array(bta_handle_change_password($user));
@@ -187,7 +198,7 @@ function bta_render_login($notice = '') {
           <form method="post">
             <input type="hidden" name="bta_login" value="1">
             <div class="bta-field">
-              <label class="bta-label" for="bta-username">Email</label>
+              <label class="bta-label" for="bta-username">Username or email</label>
               <input class="bta-input" id="bta-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus>
             </div>
             <div class="bta-field">

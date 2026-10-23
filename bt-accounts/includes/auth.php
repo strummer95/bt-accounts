@@ -126,12 +126,12 @@ function bta_clear_attempts($username) {
  */
 function bta_login($username, $password) {
     $specific = bta_specific_errors();
-    $generic  = new WP_Error('bta_bad_login', 'That email and password did not match.');
+    $generic  = new WP_Error('bta_bad_login', 'That username or email and password did not match.');
     $raw      = trim((string) $username);
 
     // Empty fields are always named — nothing to leak, and it is the single
     // most common reason a form appears to "do nothing".
-    if ($raw === '')              return new WP_Error('bta_no_username', 'Enter your email address.');
+    if ($raw === '')              return new WP_Error('bta_no_username', 'Enter your username or email.');
     if ((string) $password === '') return new WP_Error('bta_no_password', 'Enter your password.');
 
     $locked = bta_lockout_remaining($raw);
@@ -151,7 +151,7 @@ function bta_login($username, $password) {
         if (strpos($raw, '@') !== false) {
             $msg = 'No login uses the email ' . $raw . '. Check the spelling, or email orders@boomerts.com.';
         } else {
-            $msg = 'We do not recognise ' . $raw . '. Sign in with your email address.';
+            $msg = 'We do not recognise ' . $raw . '. Sign in with your username or email.';
         }
         return new WP_Error('bta_no_user', $msg);
     }
@@ -172,7 +172,7 @@ function bta_login($username, $password) {
         if (!$specific) return $generic;
 
         $left = BTA_MAX_ATTEMPTS - bta_user_attempt_count($raw);
-        $msg  = 'That password is not right. The email is correct, so it is just the password. Forgot it? Use the link below.';
+        $msg  = 'That password is not right. The username or email is correct, so it is just the password. Forgot it? Use the link below.';
         if ($left <= 0) {
             // This attempt is the one that tripped the throttle — say so now,
             // rather than leaving them to discover it on the next try.
