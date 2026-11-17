@@ -279,20 +279,41 @@ function bta_handle_forgot() {
  * per hour (stops one visitor working through many addresses). Checked before
  * recording, so the request that would tip either counter over is the one
  * that gets throttled rather than the one after it.
+ *
+ * Backed by the same `login_attempts` table the sign-in throttle uses
+ * (kind = 'forgot'), not a transient counter: a transient read-then-write
+ * (get_transient, increment, set_transient) is not atomic, so concurrent
+ * requests can all read the same stale count and each save count+1, losing
+ * attempts and letting the real total run past the allowance. An INSERT per
+ * attempt plus COUNT(*) at check time has no such lost-update window — every
+ * concurrent attempt lands its own row, so none are ever dropped.
  */
 function bta_forgot_rate_limited($typed) {
-    $by_login = (int) get_transient('bta_forgot_u_' . md5(strtolower($typed)));
+    global $wpdb;
+    $table = bta_table('login_attempts');
+    $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - HOUR_IN_SECONDS);
+
+    $by_login = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table WHERE kind = 'forgot' AND username = %s AND attempted_at > %s",
+        bta_sanitize_username($typed), $since
+    ));
     if ($by_login >= 3) return true;
-    $by_ip = (int) get_transient('bta_forgot_ip_' . md5(bta_client_ip()));
-    if ($by_ip >= 10) return true;
-    return false;
+
+    $by_ip = (int) $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM $table WHERE kind = 'forgot' AND ip = %s AND attempted_at > %s",
+        bta_client_ip(), $since
+    ));
+    return $by_ip >= 10;
 }
 
 function bta_forgot_record_attempt($typed) {
-    $ukey = 'bta_forgot_u_' . md5(strtolower($typed));
-    set_transient($ukey, (int) get_transient($ukey) + 1, HOUR_IN_SECONDS);
-    $ikey = 'bta_forgot_ip_' . md5(bta_client_ip());
-    set_transient($ikey, (int) get_transient($ikey) + 1, HOUR_IN_SECONDS);
+    global $wpdb;
+    $wpdb->insert(bta_table('login_attempts'), array(
+        'ip'           => bta_client_ip(),
+        'username'     => bta_sanitize_username($typed),
+        'kind'         => 'forgot',
+        'attempted_at' => current_time('mysql'),
+    ));
 }
 
 /** The branded card the sign-in page uses, for the other signed-out pages. */

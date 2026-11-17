@@ -11,12 +11,12 @@
  */
 if (!defined('ABSPATH')) exit;
 
-/** Failed attempts inside the lockout window, newest first. */
+/** Failed login attempts inside the lockout window, newest first. */
 function bta_recent_attempts($limit = 25) {
     global $wpdb;
     $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - DAY_IN_SECONDS);
     return $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM " . bta_table('login_attempts') . " WHERE attempted_at > %s ORDER BY attempted_at DESC LIMIT %d",
+        "SELECT * FROM " . bta_table('login_attempts') . " WHERE kind = 'login' AND attempted_at > %s ORDER BY attempted_at DESC LIMIT %d",
         $since, (int) $limit
     ));
 }
@@ -32,15 +32,15 @@ function bta_user_sessions($user_id) {
 
 /* bta_user_attempt_count() lives in auth.php — the login path needs it too. */
 
-/** Clear the throttle for one username and every IP that tried it. */
+/** Clear the login throttle for one username and every IP that tried it. */
 function bta_clear_lockout($username) {
     global $wpdb;
     $t = bta_table('login_attempts');
     $u = bta_sanitize_username($username);
-    $ips = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT ip FROM $t WHERE username = %s", $u));
-    $wpdb->query($wpdb->prepare("DELETE FROM $t WHERE username = %s", $u));
+    $ips = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT ip FROM $t WHERE kind = 'login' AND username = %s", $u));
+    $wpdb->query($wpdb->prepare("DELETE FROM $t WHERE kind = 'login' AND username = %s", $u));
     foreach ($ips as $ip) {
-        $wpdb->query($wpdb->prepare("DELETE FROM $t WHERE ip = %s", $ip));
+        $wpdb->query($wpdb->prepare("DELETE FROM $t WHERE kind = 'login' AND ip = %s", $ip));
     }
     return count($ips);
 }

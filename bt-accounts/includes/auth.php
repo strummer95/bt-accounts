@@ -41,6 +41,7 @@ function bta_record_attempt($username) {
     $wpdb->insert(bta_table('login_attempts'), array(
         'ip'           => bta_client_ip(),
         'username'     => bta_sanitize_username($username),
+        'kind'         => 'login',
         'attempted_at' => current_time('mysql'),
     ));
 }
@@ -52,12 +53,12 @@ function bta_is_locked_out($username) {
     $table = bta_table('login_attempts');
 
     $by_ip = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $table WHERE ip = %s AND attempted_at > %s", bta_client_ip(), $since
+        "SELECT COUNT(*) FROM $table WHERE kind = 'login' AND ip = %s AND attempted_at > %s", bta_client_ip(), $since
     ));
     if ($by_ip >= BTA_MAX_ATTEMPTS) return true;
 
     $by_user = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $table WHERE username = %s AND attempted_at > %s",
+        "SELECT COUNT(*) FROM $table WHERE kind = 'login' AND username = %s AND attempted_at > %s",
         bta_sanitize_username($username), $since
     ));
     return $by_user >= BTA_MAX_ATTEMPTS;
@@ -68,7 +69,7 @@ function bta_user_attempt_count($username) {
     global $wpdb;
     $since = gmdate('Y-m-d H:i:s', strtotime(current_time('mysql')) - (BTA_LOCKOUT_MINS * 60));
     return (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM " . bta_table('login_attempts') . " WHERE username = %s AND attempted_at > %s",
+        "SELECT COUNT(*) FROM " . bta_table('login_attempts') . " WHERE kind = 'login' AND username = %s AND attempted_at > %s",
         bta_sanitize_username($username), $since
     ));
 }
@@ -84,13 +85,13 @@ function bta_lockout_remaining($username) {
     $since = gmdate('Y-m-d H:i:s', $now - (BTA_LOCKOUT_MINS * 60));
 
     $oldest = $wpdb->get_var($wpdb->prepare(
-        "SELECT MIN(attempted_at) FROM $table WHERE ip = %s AND attempted_at > %s
+        "SELECT MIN(attempted_at) FROM $table WHERE kind = 'login' AND ip = %s AND attempted_at > %s
          HAVING COUNT(*) >= %d",
         bta_client_ip(), $since, BTA_MAX_ATTEMPTS
     ));
     if (!$oldest) {
         $oldest = $wpdb->get_var($wpdb->prepare(
-            "SELECT MIN(attempted_at) FROM $table WHERE username = %s AND attempted_at > %s
+            "SELECT MIN(attempted_at) FROM $table WHERE kind = 'login' AND username = %s AND attempted_at > %s
              HAVING COUNT(*) >= %d",
             bta_sanitize_username($username), $since, BTA_MAX_ATTEMPTS
         ));

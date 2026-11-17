@@ -16,10 +16,13 @@
  * v9: a design can come with its own back print (the tour fronts carry the
  *     Fall 2026 dates); a back that belongs to a front is not offered alone.
  * v10: one-time links on each login (invite / password reset), hash only.
+ * v11: login_attempts gets a `kind` column so the forgot-password rate limit
+ *      can share its race-free insert+count pattern instead of a separate
+ *      non-atomic counter (see bta_forgot_rate_limited()/bta_forgot_record_attempt()).
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 10);
+define('BTA_SCHEMA_VERSION', 11);
 
 function bta_table($name) {
     global $wpdb;
@@ -92,10 +95,13 @@ function bta_install_schema() {
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         ip VARCHAR(45) NOT NULL DEFAULT '',
         username VARCHAR(190) NOT NULL DEFAULT '',
+        kind VARCHAR(10) NOT NULL DEFAULT 'login',
         attempted_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
         PRIMARY KEY (id),
         KEY ip_time (ip, attempted_at),
-        KEY user_time (username, attempted_at)
+        KEY user_time (username, attempted_at),
+        KEY kind_ip_time (kind, ip, attempted_at),
+        KEY kind_user_time (kind, username, attempted_at)
     ) $charset;");
 
     /* ── v2: orders ──────────────────────────────────────────────────────── */
