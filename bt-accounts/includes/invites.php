@@ -304,6 +304,8 @@ function bta_portal_password($user, $error = '') {
     echo '<h1 class="bta-h1">Password</h1>';
     echo '<p class="bta-lede">You sign in with <strong>' . esc_html($user->email ? $user->email : $user->username) . '</strong>. Changing your password signs you out anywhere else you are signed in.</p>';
     if (!empty($_GET['changed'])) echo '<div class="bta-notice">Password changed.</div>';
+    if (!empty($_GET['glinked'])) echo '<div class="bta-notice">Google account linked.</div>';
+    if (!empty($_GET['gunlinked'])) echo '<div class="bta-notice">Google account unlinked.</div>';
     if ($error) echo '<div class="bta-alert">' . esc_html($error) . '</div>';
     echo '<div class="bta-card" style="max-width:460px"><form method="post">';
     echo bta_csrf_field();
@@ -314,4 +316,64 @@ function bta_portal_password($user, $error = '') {
     echo '<div class="bta-field"><label class="bta-label" for="bta-np2">Type it again</label><input class="bta-input" id="bta-np2" name="password2" type="password" minlength="' . BTA_MIN_PASSWORD . '" autocomplete="new-password" required></div>';
     echo '<button class="bta-btn bta-btn-inline" type="submit">Change password</button>';
     echo '</form></div>';
+
+    bta_portal_google_section($user);
+}
+
+/** Google account link/unlink, under the password card on the same screen. */
+function bta_portal_google_section($user) {
+    $client_id = bta_google_client_id();
+    if (!$client_id) return;
+
+    echo '<h2 class="bta-h1" style="margin-top:28px;font-size:18px">Google account</h2>';
+    if ($user->google_sub) {
+        echo '<p class="bta-lede">Linked to <strong>' . esc_html($user->google_email) . '</strong>. You can still sign in with your password.</p>';
+        echo '<div class="bta-card" style="max-width:460px"><form method="post">';
+        echo bta_csrf_field();
+        echo '<input type="hidden" name="bta_google_unlink" value="1">';
+        echo '<button class="bta-btn-sm bta-btn-ghost" type="submit">Unlink Google account</button>';
+        echo '</form></div>';
+    } else {
+        echo '<p class="bta-lede">Not linked. Sign in with Google instead of your password.</p>';
+        echo '<div class="bta-card" style="max-width:460px">';
+        echo '<div id="btaGoogleLinkBtn"></div>';
+        echo '<form method="post" id="btaGoogleLinkForm" style="display:none;">';
+        echo bta_csrf_field();
+        echo '<input type="hidden" name="bta_google_link" value="1">';
+        echo '<input type="hidden" name="credential" id="btaGoogleLinkCredential">';
+        echo '</form>';
+        echo '</div>';
+        echo '<script src="https://accounts.google.com/gsi/client" async defer></script>';
+        echo '<script>
+          function btaGoogleOnLinkCredential(resp) {
+            document.getElementById("btaGoogleLinkCredential").value = resp.credential;
+            document.getElementById("btaGoogleLinkForm").submit();
+          }
+          window.onGoogleLibraryLoad = function () {
+            google.accounts.id.initialize({
+              client_id: ' . wp_json_encode($client_id) . ',
+              callback: btaGoogleOnLinkCredential
+            });
+            google.accounts.id.renderButton(document.getElementById("btaGoogleLinkBtn"), {
+              theme: "outline", size: "medium", text: "continue_with"
+            });
+          };
+        </script>';
+    }
+}
+
+/** Handle the Google link/unlink forms on the password screen. Returns '' or an error; redirects on success. */
+function bta_handle_google_link($user) {
+    if (!bta_verify_csrf()) return 'Your session expired. Please try again.';
+    $r = bta_google_link_current($user, isset($_POST['credential']) ? (string) wp_unslash($_POST['credential']) : '');
+    if (is_wp_error($r)) return $r->get_error_message();
+    wp_safe_redirect(add_query_arg('glinked', '1', bta_portal_url('password')));
+    exit;
+}
+
+function bta_handle_google_unlink($user) {
+    if (!bta_verify_csrf()) return 'Your session expired. Please try again.';
+    bta_google_unlink_current($user);
+    wp_safe_redirect(add_query_arg('gunlinked', '1', bta_portal_url('password')));
+    exit;
 }

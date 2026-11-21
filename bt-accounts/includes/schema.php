@@ -16,10 +16,12 @@
  * v9: a design can come with its own back print (the tour fronts carry the
  *     Fall 2026 dates); a back that belongs to a front is not offered alone.
  * v10: one-time links on each login (invite / password reset), hash only.
+ * v11: Google sign-in — a login's linked Google subject and the email it
+ *      verified at, both blank until linked.
  */
 if (!defined('ABSPATH')) exit;
 
-define('BTA_SCHEMA_VERSION', 10);
+define('BTA_SCHEMA_VERSION', 11);
 
 function bta_table($name) {
     global $wpdb;
@@ -279,6 +281,15 @@ function bta_install_schema() {
     $acc_cols = $wpdb->get_col("DESC $accounts", 0);
     if (is_array($acc_cols) && !in_array('order_prefix', $acc_cols, true)) {
         $wpdb->query("ALTER TABLE $accounts ADD COLUMN order_prefix VARCHAR(12) NOT NULL DEFAULT '' AFTER slug");
+    }
+
+    // v11: Google sign-in link, blank (never NULL, so an unlinked login is a
+    // plain '' and not a schema-level special case anywhere that reads it).
+    $user_cols = $wpdb->get_col("DESC $users", 0);
+    if (is_array($user_cols) && !in_array('google_sub', $user_cols, true)) {
+        $wpdb->query("ALTER TABLE $users ADD COLUMN google_sub VARCHAR(255) NOT NULL DEFAULT '' AFTER email");
+        $wpdb->query("ALTER TABLE $users ADD COLUMN google_email VARCHAR(190) NOT NULL DEFAULT '' AFTER google_sub");
+        $wpdb->query("ALTER TABLE $users ADD KEY google_sub (google_sub)");
     }
 
     update_option('bta_schema_version', BTA_SCHEMA_VERSION);

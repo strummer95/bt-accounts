@@ -4,7 +4,7 @@ Contract-account portal for Boomer T's. Named business accounts (Cintas/Sasha is
 sign in, place orders against agreed pricing, and the shop works them from an order queue.
 Order numbers are `CIN-####`.
 
-- Current version: **0.16.4**. Constant `BTA_VERSION`, function prefix `bta_`.
+- Current version: **0.16.7**. Constant `BTA_VERSION`, function prefix `bta_`.
 - Repo: `strummer95/bt-accounts`
 
 ## Environment
@@ -49,7 +49,8 @@ submenu. BT Transfers was the one exception until 0.7.5 and it is not coming bac
 ## Structure
 
 `bt-accounts.php` main · `includes/schema.php` tables · `includes/accounts.php` the account
-model · `includes/auth.php` sign-in, sessions, capability checks · `includes/orders.php`
+model · `includes/auth.php` sign-in, sessions, capability checks ·
+`includes/google-auth.php` Google sign-in (see below) · `includes/orders.php`
 the order model · `includes/admin.php` and `admin-orders.php` shop-side management ·
 `includes/portal.php` the customer-facing portal shell · `portal-orders.php` order entry
 and list · `portal-quote.php` the account quoter · `portal-print.php` printable work order ·
@@ -152,6 +153,28 @@ password, no email, `is_account_admin` 1, display name "Boomer T's (WP user)"). 
 `bta_current_user()` honours a shop session only while `bta_staff_can()` is true for the WordPress
 login in the same browser. Hidden from `bta_get_account_users()`; can't sign in by password; pink
 `bta-shopbar` with Exit (back to wp-admin account, or /employees/accounts for staff).
+
+## Google sign-in (0.16.7, schema 11)
+
+`includes/google-auth.php`. Verified against Google's own `tokeninfo` endpoint
+(`bta_verify_google_id_token()`) — aud/iss/exp/`email_verified` all checked — rather than local
+JWKS, so there is no new dependency in the zip. `BTA_GOOGLE_CLIENT_ID` (wp-config) or the
+`bta_google_client_id` option (set on **BT Accounts**'s own settings screen, WordPress admin
+only) holds the OAuth Web client ID; it is not a secret, it ships to the browser by design. The
+button is hidden everywhere until one is set.
+
+Two new columns on the user row: `google_sub` and `google_email`, both blank until linked. First
+sign-in auto-links onto an existing **active** portal login only when the verified Google email
+matches that login's own email and it has no Google link yet — never by email alone without that
+match, never creating a new login. After that, sign-in is by `sub` alone, same 12-hour session as
+a password sign-in (`bta_start_session()`). The `/accounts/password` screen (open from the header)
+also offers **Link Google account** / **Unlink Google account** while already signed in with a
+password; linking there has no email-match requirement, only a 409-style error if that Google
+`sub` is already linked to a *different* login. Unlinking never locks anyone out — the password
+still works. A failed Google sign-in shares the existing per-IP/per-username throttle table
+(`bta_is_locked_out()`'s 5-attempts/15-minutes shape) under a `__google__` username bucket no real
+login can ever have, so it can't lock out — or be used to probe — a real account, while still
+pacing an attacker down by IP.
 
 ## Merch stores (0.13.2)
 

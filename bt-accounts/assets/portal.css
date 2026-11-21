@@ -177,6 +177,21 @@ a { color: var(--bta-navy); }
   text-align: center;
 }
 
+.bta-login-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 4px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--bta-faint);
+}
+.bta-login-rule:before, .bta-login-rule:after { content: ''; flex: 1; height: 1px; background: var(--bta-line); }
+.bta-login-google { display: flex; justify-content: center; margin-top: 12px; }
+
 /* Set password / Forgot password share the sign-in card */
 .bta-auth-h { font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 600; color: var(--bta-navy, #27267e); margin: 0 0 6px; }
 .bta-auth-p { font-size: 15px; color: var(--bta-muted); margin: 0 0 18px; line-height: 1.5; }
