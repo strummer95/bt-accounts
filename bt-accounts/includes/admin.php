@@ -61,6 +61,13 @@ function bta_handle_admin_post() {
         bta_admin_notice('Branding saved.');
     }
 
+    if ($action === 'save_google') {
+        if (!defined('BTA_GOOGLE_CLIENT_ID') || !BTA_GOOGLE_CLIENT_ID) {
+            update_option('bta_google_client_id', sanitize_text_field(wp_unslash(isset($_POST['google_client_id']) ? $_POST['google_client_id'] : '')));
+        }
+        bta_admin_notice('Google sign-in settings saved.');
+    }
+
     if ($action === 'save_staff') {
         $want = isset($_POST['staff']) ? array_map('intval', (array) $_POST['staff']) : array();
         foreach (bta_staff_candidates() as $id => $u) bta_staff_set_access($id, in_array((int) $id, $want, true));
@@ -252,6 +259,8 @@ function bta_admin_accounts_list() {
     echo '<p class="description">Shown on the sign-in card and in the portal header. Use a version that reads well on navy &mdash; white or knockout works best. Leave blank for the Oswald wordmark.</p>';
     echo '</td></tr></table><p><button class="button">Save branding</button></p></form>';
 
+    bta_admin_google_section();
+
     echo '<h2 style="margin-top:32px">Order notifications</h2>';
     echo '<form method="post" style="max-width:640px"><table class="form-table">';
     wp_nonce_field('bta_admin');
@@ -306,6 +315,23 @@ function bta_admin_accounts_list() {
         'manifest' => 'bta_update_manifest',
         'flush'    => 'bta_force_update_check',
     ));
+}
+
+/** Google sign-in client ID, disabled in the field when wp-config already fixes it. */
+function bta_admin_google_section() {
+    $fixed = defined('BTA_GOOGLE_CLIENT_ID') && BTA_GOOGLE_CLIENT_ID;
+    echo '<h2 style="margin-top:32px">Google sign-in</h2>';
+    echo '<form method="post" style="max-width:640px"><table class="form-table">';
+    wp_nonce_field('bta_admin');
+    echo '<input type="hidden" name="bta_action" value="save_google">';
+    echo '<tr><th><label for="bta-google-cid">Client ID</label></th><td>';
+    echo '<input id="bta-google-cid" name="google_client_id" class="large-text" value="' . esc_attr(bta_google_client_id()) . '"' . ($fixed ? ' disabled' : '') . '>';
+    if ($fixed) {
+        echo '<p class="description">Set in wp-config as <code>BTA_GOOGLE_CLIENT_ID</code>; this field is disabled while that constant exists.</p>';
+    } else {
+        echo '<p class="description">The OAuth 2.0 Web application Client ID from Google Cloud Console. This is not a secret &mdash; it is shipped to every browser that loads the sign-in page. JS origin <code>' . esc_html(home_url()) . '</code>, no redirect URI needed. Leave blank to hide Google sign-in everywhere.</p>';
+    }
+    echo '</td></tr></table><p><button class="button"' . ($fixed ? ' disabled' : '') . '>Save Google settings</button></p></form>';
 }
 
 /* ── Account editor ──────────────────────────────────────────────────────── */

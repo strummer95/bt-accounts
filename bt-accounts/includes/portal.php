@@ -77,6 +77,17 @@ function bta_route_portal() {
         }
     }
 
+    // ── Google sign-in submit ──
+    if (!bta_is_logged_in() && !empty($_POST['bta_google_login'])) {
+        $r = bta_google_login(isset($_POST['credential']) ? wp_unslash($_POST['credential']) : '');
+        if (is_wp_error($r)) {
+            $notice = $r->get_error_message();
+        } else {
+            wp_safe_redirect(add_query_arg('signedin', '1', home_url('/' . bta_portal_slug() . '/')));
+            exit;
+        }
+    }
+
     // The printable work order is its own document — no portal chrome, and the
     // shop can open one straight from wp-admin without a portal session.
     if ($view === 'order' && get_query_var('bta_print')) {
@@ -100,6 +111,10 @@ function bta_route_portal() {
 
     if ($view === 'password' && !empty($_POST['bta_change_password'])) {
         $errors = array(bta_handle_change_password($user));
+    } elseif ($view === 'password' && !empty($_POST['bta_google_link'])) {
+        $errors = array(bta_handle_google_link($user));
+    } elseif ($view === 'password' && !empty($_POST['bta_google_unlink'])) {
+        $errors = array(bta_handle_google_unlink($user));
     } elseif (bta_is_merch($account)) {
         // Merch-store accounts have their own screens; their POSTs run here too.
         list($errors, $notice) = bta_merch_handle_post($view, $user, $account);
@@ -169,6 +184,7 @@ function bta_foot() {
 
 function bta_render_login($notice = '') {
     bta_head('Account Sign In · Boomer T\'s');
+    $google_client_id = bta_google_client_id();
     ?>
     <div class="bta-login-wrap">
       <div class="bta-login-card">
@@ -197,6 +213,33 @@ function bta_render_login($notice = '') {
             <button class="bta-btn" type="submit">Sign in</button>
           </form>
           <p class="bta-login-help"><a href="<?php echo esc_url(bta_portal_url('forgot')); ?>">Forgot your password?</a></p>
+          <?php if ($google_client_id) : ?>
+            <div class="bta-login-rule"><span>or</span></div>
+            <div id="btaGoogleBtn" class="bta-login-google"></div>
+            <form method="post" id="btaGoogleForm" style="display:none;">
+              <input type="hidden" name="bta_google_login" value="1">
+              <input type="hidden" name="credential" id="btaGoogleCredential">
+            </form>
+            <script src="https://accounts.google.com/gsi/client" async defer></script>
+            <script>
+              function btaGoogleOnCredential(resp) {
+                document.getElementById('btaGoogleCredential').value = resp.credential;
+                document.getElementById('btaGoogleForm').submit();
+              }
+              // Google's own client library calls this automatically once loaded —
+              // not window.onload, since the script tag is async/defer and finishes
+              // at an unpredictable time.
+              window.onGoogleLibraryLoad = function () {
+                google.accounts.id.initialize({
+                  client_id: <?php echo wp_json_encode($google_client_id); ?>,
+                  callback: btaGoogleOnCredential
+                });
+                google.accounts.id.renderButton(document.getElementById('btaGoogleBtn'), {
+                  theme: 'outline', size: 'large', width: 280
+                });
+              };
+            </script>
+          <?php endif; ?>
           <p class="bta-login-help">Trouble signing in? Call the shop or email
             <a href="mailto:orders@boomerts.com">orders@boomerts.com</a>.</p>
         </div>
